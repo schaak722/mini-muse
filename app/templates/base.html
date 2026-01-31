@@ -11,11 +11,12 @@
   <div class="layout">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand__logo">MM</div>
-        <div class="brand__text">
-          <div class="brand__name">{{ config.APP_NAME }}</div>
-          <div class="brand__sub">Admin</div>
-        </div>
+        <img
+          class="brand__logo-img"
+          src="{{ url_for('static', filename='img/mm-logo-peach.png') }}"
+          alt="mini muse"
+        />
+        <div class="brand__workspace">WorkSpace</div>
       </div>
 
       <nav class="nav">
