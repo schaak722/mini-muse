@@ -1,1 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="grid">
+  <div class="card">
+    <div class="card__label">Revenue (7 days)</div>
+    <div class="card__value">€{{ kpis.revenue_week }}</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Revenue (month)</div>
+    <div class="card__value">€{{ kpis.revenue_month }}</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Top SKU</div>
+    <div class="card__value">{{ kpis.top_sku }}</div>
+  </div>
+  <div class="card">
+    <div class="card__label">Top units</div>
+    <div class="card__value">{{ kpis.top_units }}</div>
+  </div>
+</div>
+
+<div class="card mt-16">
+  <div class="card__header">
+    <div>
+      <div class="h2">Next steps</div>
+      <div class="muted">Phase 1 will add the Catalog + search-as-you-type.</div>
+    </div>
+  </div>
+  <div class="card__body">
+    <ul class="list">
+      <li>Catalog (SKUs / attributes / VAT rate)</li>
+      <li>CSV import</li>
+      <li>Search + filters + export</li>
+    </ul>
+  </div>
+</div>
+
+{% endblock %}
 
