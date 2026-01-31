@@ -258,6 +258,25 @@ def sales_order_detail(order_id: int):
     total_cost = sum(Decimal(str(l.cost_total or 0)) for l in lines)
     total_profit = sum(Decimal(str(l.profit or 0)) for l in lines)
 
+        # Discount analytics
+    total_discount_gross = sum(
+        Decimal(str((l.line_discount_gross or 0))) + Decimal(str((l.order_discount_alloc_gross or 0)))
+        for l in lines
+    )
+
+    # Convert discounts from gross to net (by line VAT rate) so we can compare profit on net basis.
+    total_discount_net = sum(
+        _gross_to_net(
+            Decimal(str((l.line_discount_gross or 0))) + Decimal(str((l.order_discount_alloc_gross or 0))),
+            Decimal(str(l.vat_rate or Decimal("18.00"))),
+        )
+        for l in lines
+    )
+
+    # Profit if there were no discounts (net revenue + net discounts - cost)
+    profit_no_discount = (total_rev_net + total_discount_net) - total_cost
+    profit_lost_to_discounts = profit_no_discount - total_profit
+    
     margin = Decimal("0")
     if total_rev_net > 0:
         margin = (total_profit / total_rev_net) * Decimal("100")
@@ -271,8 +290,11 @@ def sales_order_detail(order_id: int):
         total_cost=total_cost,
         total_profit=total_profit,
         margin=margin,
+        total_discount_gross=total_discount_gross,
+        total_discount_net=total_discount_net,
+        profit_no_discount=profit_no_discount,
+        profit_lost_to_discounts=profit_lost_to_discounts,
     )
-
 
 # -------------------------
 # Import (Upload -> Preview -> Commit)
@@ -750,6 +772,173 @@ def items_report_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=sales_items_report.csv"},
     )
+
+# -------------------------
+# Discount report
+# -------------------------
+
+@sales_bp.get("/discount-report")
+@login_required
+@require_role("viewer")
+def discount_report():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0).label("line_discount_gross"),
+            db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0).label("order_discount_alloc_gross"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = (
+        query.group_by(SalesLine.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0) +
+                          db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0)))
+        .limit(500)
+        .all()
+    )
+
+    channels = [r[0] for r in db.session.query(SalesOrder.channel).distinct().order_by(SalesOrder.channel.asc()).all()]
+
+    # Totals
+    total_qty = sum(int(r.qty_sold or 0) for r in rows)
+    total_rev = sum(Decimal(str(r.revenue_net or 0)) for r in rows)
+    total_cost = sum(Decimal(str(r.cost_total or 0)) for r in rows)
+    total_profit = sum(Decimal(str(r.profit or 0)) for r in rows)
+    total_disc_gross = sum(Decimal(str(r.line_discount_gross or 0)) + Decimal(str(r.order_discount_alloc_gross or 0)) for r in rows)
+
+    total_margin = Decimal("0")
+    if total_rev > 0:
+        total_margin = (total_profit / total_rev) * Decimal("100")
+
+    # Discount ratio (gross discounts vs gross sales estimate)
+    # We don't store gross sales total directly, so we approximate gross sales as:
+    # gross_after_discounts + discounts.
+    # gross_after_discounts is not stored per line, so we compute an approximate:
+    # net revenue -> gross using VAT 18%. This is an approximation because items can have different VAT rates.
+    approx_gross_sales = total_rev * Decimal("1.18")
+    discount_pct = Decimal("0")
+    if approx_gross_sales > 0:
+        discount_pct = (total_disc_gross / approx_gross_sales) * Decimal("100")
+
+    return render_template(
+        "sales/discount_report.html",
+        rows=rows,
+        q=q,
+        channel=channel,
+        date_from=(date_from.isoformat() if date_from else ""),
+        date_to=(date_to.isoformat() if date_to else ""),
+        channels=channels,
+        total_qty=total_qty,
+        total_rev=total_rev,
+        total_cost=total_cost,
+        total_profit=total_profit,
+        total_margin=total_margin,
+        total_disc_gross=total_disc_gross,
+        approx_gross_sales=approx_gross_sales,
+        discount_pct=discount_pct,
+    )
+
+
+@sales_bp.get("/discount-report.csv")
+@login_required
+@require_role("viewer")
+def discount_report_csv():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0).label("line_discount_gross"),
+            db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0).label("order_discount_alloc_gross"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = (
+        query.group_by(SalesLine.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0) +
+                          db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0)))
+        .limit(5000)
+        .all()
+    )
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["SKU", "Description", "Qty Sold", "Revenue Net", "Cost Total", "Profit", "Discount Gross", "Discount % (approx)"])
+
+    for r in rows:
+        disc_gross = Decimal(str(r.line_discount_gross or 0)) + Decimal(str(r.order_discount_alloc_gross or 0))
+        rev_net = Decimal(str(r.revenue_net or 0))
+        approx_gross = rev_net * Decimal("1.18")
+        disc_pct = Decimal("0")
+        if approx_gross > 0:
+            disc_pct = (disc_gross / approx_gross) * Decimal("100")
+
+        w.writerow([
+            r.sku,
+            r.description or "",
+            int(r.qty_sold or 0),
+            f"{rev_net:.2f}",
+            f"{Decimal(str(r.cost_total or 0)):.2f}",
+            f"{Decimal(str(r.profit or 0)):.2f}",
+            f"{disc_gross:.2f}",
+            f"{disc_pct:.2f}",
+        ])
+
+    csv_data = out.getvalue()
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sales_discount_report.csv"},
+    )
+
 
 # -------------------------
 # Export CSV (orders list)
