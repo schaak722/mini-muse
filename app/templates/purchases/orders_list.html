@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block page_title %}Purchases{% endblock %}
+{% block content %}
+
+<div class="toolbar">
+  <form class="toolbar__left" method="get">
+    <input class="input input--sm" name="q" value="{{ q }}" placeholder="Search order number / supplier / brand">
+    <button class="btn btn--ghost btn--sm" type="submit">Search</button>
+    <a class="btn btn--ghost btn--sm" href="{{ url_for('purchases.list_purchase_orders') }}">Reset</a>
+  </form>
+
+  <div class="toolbar__right">
+    {% if current_user.role != "viewer" %}
+      <a class="btn btn--primary btn--sm" href="{{ url_for('purchases.import_upload') }}">Import Purchases CSV</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Order #</th>
+        <th>Supplier</th>
+        <th>Brand</th>
+        <th>Order date</th>
+        <th>Arrival</th>
+        <th>Freight total</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for po in orders %}
+        <tr>
+          <td>{{ po.order_number }}</td>
+          <td>{{ po.supplier_name or "" }}</td>
+          <td>{{ po.brand or "" }}</td>
+          <td>{{ po.order_date or "" }}</td>
+          <td>{{ po.arrival_date or "" }}</td>
+          <td>{{ po.freight_total or "" }}</td>
+          <td class="td-right">
+            <a class="btn btn--ghost btn--sm" href="{{ url_for('purchases.purchase_detail', po_id=po.id) }}">View</a>
+          </td>
+        </tr>
+      {% endfor %}
+      {% if orders|length == 0 %}
+        <tr><td colspan="7" class="muted">No purchase orders yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
