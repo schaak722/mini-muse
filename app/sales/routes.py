@@ -229,7 +229,7 @@ def list_sales_orders():
             .all()
         )
         totals_map = {oid: {"rev": rev, "cost": cost, "profit": prof, "units": units} for oid, rev, cost, prof, units in totals}
-    
+
     return render_template(
         "sales/orders_list.html",
         orders=orders,
@@ -783,20 +783,22 @@ def export_orders_csv():
 
     orders = query.order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc()).limit(2000).all()
     order_ids = [o.id for o in orders]
-
-    totals = (
-        db.session.query(
-            SalesLine.sales_order_id,
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0),
-            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0),
-            db.func.coalesce(db.func.sum(SalesLine.profit), 0),
-            db.func.coalesce(db.func.sum(SalesLine.qty), 0),
+    
+    totals_map = {}
+    if order_ids:
+        totals = (
+            db.session.query(
+                SalesLine.sales_order_id,
+                db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0),
+                db.func.coalesce(db.func.sum(SalesLine.cost_total), 0),
+                db.func.coalesce(db.func.sum(SalesLine.profit), 0),
+                db.func.coalesce(db.func.sum(SalesLine.qty), 0),
+            )
+            .filter(SalesLine.sales_order_id.in_(order_ids))
+            .group_by(SalesLine.sales_order_id)
+            .all()
         )
-        .filter(SalesLine.sales_order_id.in_(order_ids if order_ids else [0]))
-        .group_by(SalesLine.sales_order_id)
-        .all()
-    )
-    totals_map = {oid: {"rev": rev, "cost": cost, "profit": prof, "units": units} for oid, rev, cost, prof, units in totals}
+        totals_map = {oid: {"rev": rev, "cost": cost, "profit": prof, "units": units} for oid, rev, cost, prof, units in totals}
 
     out = io.StringIO()
     w = csv.writer(out)
