@@ -212,21 +212,24 @@ def list_sales_orders():
     channels = [r[0] for r in db.session.query(SalesOrder.channel).distinct().order_by(SalesOrder.channel.asc()).all()]
 
     # Totals per order (single grouped query)
-    totals = (
-        db.session.query(
-            SalesLine.sales_order_id,
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0),
-            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0),
-            db.func.coalesce(db.func.sum(SalesLine.profit), 0),
-            db.func.coalesce(db.func.sum(SalesLine.qty), 0),
+    order_ids = [o.id for o in orders]
+    
+    totals_map = {}
+    if order_ids:
+        totals = (
+            db.session.query(
+                SalesLine.sales_order_id,
+                db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0),
+                db.func.coalesce(db.func.sum(SalesLine.cost_total), 0),
+                db.func.coalesce(db.func.sum(SalesLine.profit), 0),
+                db.func.coalesce(db.func.sum(SalesLine.qty), 0),
+            )
+            .filter(SalesLine.sales_order_id.in_(order_ids))
+            .group_by(SalesLine.sales_order_id)
+            .all()
         )
-        .filter(SalesLine.sales_order_id.in_([o.id for o in orders]) if orders else [0])
-        .group_by(SalesLine.sales_order_id)
-        .all()
-    )
-
-    totals_map = {oid: {"rev": rev, "cost": cost, "profit": prof, "units": units} for oid, rev, cost, prof, units in totals}
-
+        totals_map = {oid: {"rev": rev, "cost": cost, "profit": prof, "units": units} for oid, rev, cost, prof, units in totals}
+    
     return render_template(
         "sales/orders_list.html",
         orders=orders,
