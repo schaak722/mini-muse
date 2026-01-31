@@ -23,10 +23,12 @@ def create_app():
     from .auth.routes import auth_bp
     from .admin.routes import admin_bp
     from .main.routes import main_bp
+    from .catalog.routes import catalog_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(main_bp)
+    app.register_blueprint(catalog_bp)
 
     # Simple health endpoint for Koyeb checks
     @app.get("/health")
