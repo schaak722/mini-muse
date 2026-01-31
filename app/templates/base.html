@@ -27,7 +27,7 @@
         <a class="nav__item" href="{{ url_for('main.dashboard') }}">Dashboard</a>
         <a class="nav__item" href="{{ url_for('catalog.items_list') }}">Catalog</a>
         <a class="nav__item" href="{{ url_for('purchases.list_purchase_orders') }}">Purchases</a>
-        <a class="nav__item disabled" href="#" title="Phase 3">Sales (Phase 3)</a>
+        <a class="nav__item" href="{{ url_for('sales.list_sales_orders') }}">Sales</a>
         <a class="nav__item disabled" href="#" title="Phase 4">Reports (Phase 4)</a>
 
         {% if current_user.is_authenticated and current_user.is_admin %}
