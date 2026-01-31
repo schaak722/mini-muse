@@ -10,5 +10,5 @@ class Config:
     BOOTSTRAP_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
     BOOTSTRAP_ADMIN_NAME = os.getenv("ADMIN_NAME", "Admin")
 
-    APP_NAME = os.getenv("APP_NAME", "Mini Muse Costings")
+    APP_NAME = os.getenv("APP_NAME", "mini muse")
 
