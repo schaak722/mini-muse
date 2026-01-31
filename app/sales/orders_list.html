@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}Sales{% endblock %}
+{% block content %}
+
+<div class="toolbar">
+  <form class="toolbar__left" method="get">
+    <input class="input input--sm" name="q" value="{{ q }}" placeholder="Search order # / customer">
+    <select class="input input--sm" name="channel" style="min-width: 160px;">
+      <option value="">All channels</option>
+      {% for ch in channels %}
+        <option value="{{ ch|lower }}" {% if channel == (ch|lower) %}selected{% endif %}>{{ ch }}</option>
+      {% endfor %}
+    </select>
+    <input class="input input--sm" type="date" name="from" value="{{ date_from }}" title="From date">
+    <input class="input input--sm" type="date" name="to" value="{{ date_to }}" title="To date">
+
+    <button class="btn btn--ghost btn--sm" type="submit">Filter</button>
+    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.list_sales_orders') }}">Reset</a>
+  </form>
+
+  <div class="toolbar__right">
+    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.export_orders_csv', q=q, channel=channel, from=date_from, to=date_to) }}">Export CSV</a>
+    {% if current_user.role != "viewer" %}
+      <a class="btn btn--primary btn--sm" href="{{ url_for('sales.import_upload') }}">Import Sales CSV</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Order #</th>
+        <th>Channel</th>
+        <th>Currency</th>
+        <th class="td-right">Units</th>
+        <th class="td-right">Revenue (net)</th>
+        <th class="td-right">Profit</th>
+        <th class="td-right">Margin %</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+        {% set t = totals_map.get(o.id, {"rev": 0, "cost": 0, "profit": 0, "units": 0}) %}
+        {% set rev = t.rev %}
+        {% set prof = t.profit %}
+        {% set margin = 0 %}
+        {% if rev and rev > 0 %}
+          {% set margin = (prof / rev) * 100 %}
+        {% endif %}
+
+        <tr>
+          <td>{{ o.order_date }}</td>
+          <td>{{ o.order_number }}</td>
+          <td>{{ o.channel }}</td>
+          <td>{{ o.currency }}</td>
+          <td class="td-right">{{ t.units or 0 }}</td>
+          <td class="td-right">{{ "%.2f"|format(rev or 0) }}</td>
+          <td class="td-right">{{ "%.2f"|format(prof or 0) }}</td>
+          <td class="td-right">{{ "%.2f"|format(margin) }}</td>
+          <td class="td-right">
+            <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.sales_order_detail', order_id=o.id) }}">View</a>
+          </td>
+        </tr>
+      {% endfor %}
+      {% if orders|length == 0 %}
+        <tr><td colspan="9" class="muted">No sales orders yet.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
