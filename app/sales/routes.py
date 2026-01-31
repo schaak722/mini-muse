@@ -602,6 +602,151 @@ def import_commit(batch_id: int):
     )
     return redirect(url_for("sales.list_sales_orders"))
 
+# -------------------------
+# Item-level report (SKU)
+# -------------------------
+
+@sales_bp.get("/items-report")
+@login_required
+@require_role("viewer")
+def items_report():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = (
+        query.group_by(SalesLine.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.profit), 0)))
+        .limit(500)
+        .all()
+    )
+
+    channels = [r[0] for r in db.session.query(SalesOrder.channel).distinct().order_by(SalesOrder.channel.asc()).all()]
+
+    # Compute grand totals for the footer/KPIs
+    total_qty = sum(int(r.qty_sold or 0) for r in rows)
+    total_rev = sum(Decimal(str(r.revenue_net or 0)) for r in rows)
+    total_cost = sum(Decimal(str(r.cost_total or 0)) for r in rows)
+    total_profit = sum(Decimal(str(r.profit or 0)) for r in rows)
+    total_margin = Decimal("0")
+    if total_rev > 0:
+        total_margin = (total_profit / total_rev) * Decimal("100")
+
+    return render_template(
+        "sales/items_report.html",
+        rows=rows,
+        q=q,
+        channel=channel,
+        date_from=(date_from.isoformat() if date_from else ""),
+        date_to=(date_to.isoformat() if date_to else ""),
+        channels=channels,
+        total_qty=total_qty,
+        total_rev=total_rev,
+        total_cost=total_cost,
+        total_profit=total_profit,
+        total_margin=total_margin,
+    )
+
+@sales_bp.get("/items-report.csv")
+@login_required
+@require_role("viewer")
+def items_report_csv():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = (
+        query.group_by(SalesLine.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.profit), 0)))
+        .limit(5000)
+        .all()
+    )
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["SKU", "Description", "Qty Sold", "Revenue Net", "Cost Total", "Profit", "Margin %"])
+
+    for r in rows:
+        rev = Decimal(str(r.revenue_net or 0))
+        prof = Decimal(str(r.profit or 0))
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+
+        w.writerow([
+            r.sku,
+            r.description or "",
+            int(r.qty_sold or 0),
+            f"{rev:.2f}",
+            f"{Decimal(str(r.cost_total or 0)):.2f}",
+            f"{prof:.2f}",
+            f"{margin:.2f}",
+        ])
+
+    csv_data = out.getvalue()
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sales_items_report.csv"},
+    )
 
 # -------------------------
 # Export CSV (orders list)
