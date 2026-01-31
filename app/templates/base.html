@@ -1,1 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ config.APP_NAME }}{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand__logo">MM</div>
+        <div class="brand__text">
+          <div class="brand__name">{{ config.APP_NAME }}</div>
+          <div class="brand__sub">Admin</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav__item" href="{{ url_for('main.dashboard') }}">Dashboard</a>
+        <a class="nav__item disabled" href="#" title="Phase 1">Catalog (Phase 1)</a>
+        <a class="nav__item disabled" href="#" title="Phase 2">Purchases (Phase 2)</a>
+        <a class="nav__item disabled" href="#" title="Phase 3">Sales (Phase 3)</a>
+        <a class="nav__item disabled" href="#" title="Phase 4">Reports (Phase 4)</a>
+
+        {% if current_user.is_authenticated and current_user.is_admin %}
+          <div class="nav__section">Admin</div>
+          <a class="nav__item" href="{{ url_for('admin.users_list') }}">Users</a>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar__footer">
+        {% if current_user.is_authenticated %}
+          <div class="muted">Signed in as</div>
+          <div class="sidebar__user">{{ current_user.name }} ({{ current_user.role }})</div>
+          <a class="btn btn--ghost" href="{{ url_for('auth.logout') }}">Logout</a>
+        {% endif %}
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar__left">
+          <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
+        </div>
+        <div class="topbar__right">
+          <div class="search">
+            <input id="globalSearch" class="search__input" placeholder="Search (Phase 5)..." disabled />
+          </div>
+        </div>
+      </header>
+
+      <section class="content">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash flash--{{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+      </section>
+    </main>
+  </div>
+</body>
+</html>
 
