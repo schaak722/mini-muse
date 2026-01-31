@@ -19,6 +19,7 @@
   </form>
 
   <div class="toolbar__right">
+    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.items_report', q=q, channel=channel, from=date_from, to=date_to) }}">Items report</a>
     <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.export_orders_csv', q=q, channel=channel, from=date_from, to=date_to) }}">Export CSV</a>
     {% if current_user.role != "viewer" %}
       <a class="btn btn--primary btn--sm" href="{{ url_for('sales.import_upload') }}">Import Sales CSV</a>
