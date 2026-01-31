@@ -43,3 +43,24 @@ class User(db.Model, UserMixin):
     def get_id(self):
         return str(self.id)
 
+class Item(db.Model):
+    __tablename__ = "items"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sku = db.Column(db.String(80), unique=True, index=True, nullable=False)
+    description = db.Column(db.String(255), nullable=False)
+
+    brand = db.Column(db.String(80), nullable=True)
+    supplier = db.Column(db.String(120), nullable=True)
+
+    colour = db.Column(db.String(80), nullable=True)
+    size = db.Column(db.String(40), nullable=True)
+
+    weight = db.Column(db.Numeric(10, 3), nullable=True)      # kg
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=18.00)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
