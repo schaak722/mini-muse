@@ -42,7 +42,7 @@ body{
 }
 
 .brand__logo-img{
-  width:280px;          /* controls logo width */
+  width:180px;
   height:auto;
   display:block;
 }
