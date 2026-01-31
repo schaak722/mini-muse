@@ -64,3 +64,68 @@ class Item(db.Model):
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+from datetime import datetime
+from decimal import Decimal
+
+class PurchaseOrder(db.Model):
+    __tablename__ = "purchase_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    supplier_name = db.Column(db.String(120), nullable=True)
+    brand = db.Column(db.String(80), nullable=True)
+
+    order_number = db.Column(db.String(80), index=True, nullable=False)
+    order_date = db.Column(db.Date, nullable=True)
+    arrival_date = db.Column(db.Date, nullable=True)
+
+    currency = db.Column(db.String(10), nullable=False, default="EUR")
+
+    freight_total = db.Column(db.Numeric(12, 2), nullable=True)  # total inbound freight for this PO
+    allocation_method = db.Column(db.String(20), nullable=False, default="value")  # value|qty
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    lines = db.relationship("PurchaseLine", backref="purchase_order", lazy=True, cascade="all, delete-orphan")
+
+
+class PurchaseLine(db.Model):
+    __tablename__ = "purchase_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    purchase_order_id = db.Column(db.Integer, db.ForeignKey("purchase_orders.id"), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
+
+    sku = db.Column(db.String(80), index=True, nullable=False)  # denormalized for convenience
+    description = db.Column(db.String(255), nullable=True)
+    colour = db.Column(db.String(80), nullable=True)
+    size = db.Column(db.String(40), nullable=True)
+
+    qty = db.Column(db.Integer, nullable=False, default=0)
+    unit_cost_net = db.Column(db.Numeric(12, 4), nullable=False, default=Decimal("0.0000"))
+
+    packaging_per_unit = db.Column(db.Numeric(12, 4), nullable=True)
+
+    freight_allocated_total = db.Column(db.Numeric(12, 4), nullable=True)
+    freight_allocated_per_unit = db.Column(db.Numeric(12, 4), nullable=True)
+
+    landed_unit_cost = db.Column(db.Numeric(12, 4), nullable=True)  # unit_cost + freight/unit + packaging/unit
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    item = db.relationship("Item", lazy=True)
+
+class ImportBatch(db.Model):
+    """
+    Temporary storage for preview/resolve workflow.
+    """
+    __tablename__ = "import_batches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(40), nullable=False, default="purchase_import")  # future-proof
+
+    filename = db.Column(db.String(255), nullable=True)
+    payload = db.Column(db.JSON, nullable=False)  # stores parsed orders + lines
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
