@@ -15,14 +15,13 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <div class="brand">
-        <img
-          class="brand__logo-img"
-          src="{{ url_for('static', filename='img/mm-logo-peach.png') }}"
-          alt="mini muse"
-        />
-        <div class="brand__workspace">WorkSpace</div>
-      </div>
+    <div class="brand">
+      <img
+        class="brand__logo-img"
+        src="{{ url_for('static', filename='img/mm-logo-peach.png') }}"
+        alt="mini muse"
+      />
+    </div>
 
       <nav class="nav">
         <a class="nav__item" href="{{ url_for('main.dashboard') }}">Dashboard</a>
