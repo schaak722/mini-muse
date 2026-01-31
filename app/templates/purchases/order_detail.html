@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block page_title %}Purchase Order{% endblock %}
+{% block content %}
+
+<div class="card">
+  <div class="card__header">
+    <div>
+      <div class="h2">{{ po.order_number }}</div>
+      <div class="muted">
+        Supplier: {{ po.supplier_name or "-" }} |
+        Brand: {{ po.brand or "-" }} |
+        Order date: {{ po.order_date or "-" }} |
+        Arrival: {{ po.arrival_date or "-" }}
+      </div>
+    </div>
+    <div>
+      {% if current_user.role != "viewer" %}
+        <a class="btn btn--ghost" href="{{ url_for('purchases.edit_costs', po_id=po.id) }}">Edit freight & recalc</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card__body">
+    <div class="grid" style="grid-template-columns: repeat(4, minmax(0,1fr));">
+      <div class="card">
+        <div class="card__label">Total qty</div>
+        <div class="card__value">{{ total_qty }}</div>
+      </div>
+      <div class="card">
+        <div class="card__label">Goods cost (net)</div>
+        <div class="card__value">{{ total_goods }}</div>
+      </div>
+      <div class="card">
+        <div class="card__label">Freight allocated</div>
+        <div class="card__value">{{ total_freight_alloc }}</div>
+      </div>
+      <div class="card">
+        <div class="card__label">Packaging total</div>
+        <div class="card__value">{{ total_packaging }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap mt-16">
+  <table class="table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Description</th>
+        <th>Qty</th>
+        <th>Unit cost</th>
+        <th>Pkg/unit</th>
+        <th>Freight/unit</th>
+        <th>Landed/unit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ln in lines %}
+        <tr>
+          <td>{{ ln.sku }}</td>
+          <td>{{ ln.description or "" }}</td>
+          <td>{{ ln.qty }}</td>
+          <td>{{ ln.unit_cost_net }}</td>
+          <td>{{ ln.packaging_per_unit or 0 }}</td>
+          <td>{{ ln.freight_allocated_per_unit or 0 }}</td>
+          <td><strong>{{ ln.landed_unit_cost or "" }}</strong></td>
+        </tr>
+      {% endfor %}
+      {% if lines|length == 0 %}
+        <tr><td colspan="7" class="muted">No lines.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
