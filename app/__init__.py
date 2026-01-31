@@ -15,9 +15,10 @@ def create_app():
         return db.session.get(User, int(user_id))
 
     # Create tables + bootstrap first admin if needed
-    with app.app_context():
-        db.create_all()
-        _bootstrap_admin_if_needed(app)
+with app.app_context():
+    from . import models  # noqa: F401
+    db.create_all()
+    _bootstrap_admin_if_needed(app)
 
     # Blueprints
     from .auth.routes import auth_bp
