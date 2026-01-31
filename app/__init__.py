@@ -23,12 +23,14 @@ def create_app():
     from .main.routes import main_bp
     from .catalog.routes import catalog_bp
     from .purchases.routes import purchases_bp
+    from .sales.routes import sales_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(catalog_bp)
     app.register_blueprint(purchases_bp)
+    app.register_blueprint(sales_bp)
 
     # Create tables + bootstrap first admin if needed
     with app.app_context():
