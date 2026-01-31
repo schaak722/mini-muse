@@ -1,6 +1,9 @@
 from datetime import datetime
+from decimal import Decimal
+
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
+
 from .extensions import db
 
 ROLE_ADMIN = "admin"
@@ -8,6 +11,7 @@ ROLE_USER = "user"
 ROLE_VIEWER = "viewer"
 
 ROLE_CHOICES = [ROLE_ADMIN, ROLE_USER, ROLE_VIEWER]
+
 
 class User(db.Model, UserMixin):
     __tablename__ = "users"
@@ -43,6 +47,7 @@ class User(db.Model, UserMixin):
     def get_id(self):
         return str(self.id)
 
+
 class Item(db.Model):
     __tablename__ = "items"
 
@@ -57,16 +62,14 @@ class Item(db.Model):
     colour = db.Column(db.String(80), nullable=True)
     size = db.Column(db.String(40), nullable=True)
 
-    weight = db.Column(db.Numeric(10, 3), nullable=True)      # kg
-    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=18.00)
+    weight = db.Column(db.Numeric(10, 3), nullable=True)  # kg
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=Decimal("18.00"))
 
     is_active = db.Column(db.Boolean, nullable=False, default=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-from datetime import datetime
-from decimal import Decimal
 
 class PurchaseOrder(db.Model):
     __tablename__ = "purchase_orders"
@@ -87,7 +90,12 @@ class PurchaseOrder(db.Model):
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    lines = db.relationship("PurchaseLine", backref="purchase_order", lazy=True, cascade="all, delete-orphan")
+    lines = db.relationship(
+        "PurchaseLine",
+        backref="purchase_order",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
 
 
 class PurchaseLine(db.Model):
@@ -117,6 +125,7 @@ class PurchaseLine(db.Model):
 
     item = db.relationship("Item", lazy=True)
 
+
 class ImportBatch(db.Model):
     """
     Temporary storage for preview/resolve workflow.
@@ -129,3 +138,86 @@ class ImportBatch(db.Model):
     filename = db.Column(db.String(255), nullable=True)
     payload = db.Column(db.JSON, nullable=False)  # stores parsed orders + lines
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+# -------------------------
+# Phase 3: Sales + Profit
+# -------------------------
+
+class SalesOrder(db.Model):
+    __tablename__ = "sales_orders"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # An order number is often unique per channel (Shopify, PayPal, etc.).
+    order_number = db.Column(db.String(80), nullable=False)
+    order_date = db.Column(db.Date, nullable=False)
+
+    channel = db.Column(db.String(40), nullable=False, default="unknown")  # shopify|paypal|pos|manual|...
+    currency = db.Column(db.String(10), nullable=False, default="EUR")
+
+    customer_name = db.Column(db.String(120), nullable=True)
+    customer_email = db.Column(db.String(255), nullable=True)
+
+    # VAT-inclusive values for Malta (gross)
+    shipping_charged_gross = db.Column(db.Numeric(12, 2), nullable=True)     # what customer paid for shipping
+    order_discount_gross = db.Column(db.Numeric(12, 2), nullable=True)       # order-level discount (if provided)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    lines = db.relationship(
+        "SalesLine",
+        backref="sales_order",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("channel", "order_number", name="uq_sales_orders_channel_order_number"),
+        db.Index("ix_sales_orders_order_date", "order_date"),
+        db.Index("ix_sales_orders_channel", "channel"),
+    )
+
+
+class SalesLine(db.Model):
+    __tablename__ = "sales_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sales_order_id = db.Column(db.Integer, db.ForeignKey("sales_orders.id"), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey("items.id"), nullable=False)
+
+    sku = db.Column(db.String(80), index=True, nullable=False)  # snapshot / denormalized for reporting
+    description = db.Column(db.String(255), nullable=True)
+
+    qty = db.Column(db.Integer, nullable=False, default=0)
+
+    # VAT-inclusive inputs (gross)
+    unit_price_gross = db.Column(db.Numeric(12, 4), nullable=False, default=Decimal("0.0000"))
+    line_discount_gross = db.Column(db.Numeric(12, 4), nullable=True)  # discount applied to this line (gross)
+    order_discount_alloc_gross = db.Column(db.Numeric(12, 4), nullable=True)  # allocated portion of order-level discount
+
+    # VAT rate used for net calculations (snapshot at time of sale)
+    vat_rate = db.Column(db.Numeric(5, 2), nullable=False, default=Decimal("18.00"))
+
+    # Derived revenue values (net of VAT) stored for stable reporting
+    unit_price_net = db.Column(db.Numeric(12, 4), nullable=True)
+    revenue_net = db.Column(db.Numeric(12, 4), nullable=True)            # total net revenue for this line after discounts
+
+    # Cost/profit snapshot (so historical reports remain stable)
+    cost_method = db.Column(db.String(20), nullable=False, default="weighted_avg")  # weighted_avg|last
+    unit_cost_basis = db.Column(db.Numeric(12, 4), nullable=True)                  # landed unit cost used for this sale line
+    cost_total = db.Column(db.Numeric(12, 4), nullable=True)                       # unit_cost_basis * qty
+    profit = db.Column(db.Numeric(12, 4), nullable=True)                           # revenue_net - cost_total
+
+    # Optional: traceability
+    cost_source_po_id = db.Column(db.Integer, nullable=True)  # purchase_orders.id (not FK to keep it flexible)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    item = db.relationship("Item", lazy=True)
+
+    __table_args__ = (
+        db.Index("ix_sales_lines_sales_order_id", "sales_order_id"),
+        db.Index("ix_sales_lines_item_id", "item_id"),
+    )
