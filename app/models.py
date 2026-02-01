@@ -172,11 +172,11 @@ class SalesOrder(db.Model):
         cascade="all, delete-orphan",
     )
 
-     __table_args__ = (
-        db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
+    __table_args__ = (
+        db.UniqueConstraint("channel", "order_number", name="uq_sales_orders_channel_order_number"),
+        db.Index("ix_sales_orders_order_date", "order_date"),
+        db.Index("ix_sales_orders_channel", "channel"),
     )
-
-
 
 class SalesLine(db.Model):
     __tablename__ = "sales_lines"
@@ -269,7 +269,4 @@ class SkuMetricDaily(db.Model):
     discount_net = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-
-    __table_args__ = (
-        db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
-    )
+)
