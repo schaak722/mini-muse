@@ -6,7 +6,7 @@ from flask_login import login_required, current_user
 
 from ..decorators import require_role
 from ..extensions import db
-from ..models import SalesOrder, SalesLine
+from ..models import SalesOrder, SalesLine, DailyMetric
 
 main_bp = Blueprint("main", __name__, url_prefix="")
 
@@ -24,10 +24,7 @@ def _to_decimal(x) -> Decimal:
         return Decimal("0")
 
 
-def _sum_period(date_from, date_to):
-    """
-    Returns (revenue_net, profit, units) for SalesLines joined to SalesOrders in a date range (inclusive).
-    """
+def _sum_period_live(date_from, date_to):
     row = (
         db.session.query(
             db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev"),
@@ -42,13 +39,40 @@ def _sum_period(date_from, date_to):
     return (_to_decimal(row.rev), _to_decimal(row.profit), int(row.units or 0))
 
 
+def _sum_period_agg(date_from, date_to):
+    row = (
+        db.session.query(
+            db.func.coalesce(db.func.sum(DailyMetric.revenue_net), 0).label("rev"),
+            db.func.coalesce(db.func.sum(DailyMetric.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(DailyMetric.units), 0).label("units"),
+        )
+        .filter(DailyMetric.metric_date >= date_from)
+        .filter(DailyMetric.metric_date <= date_to)
+        .one()
+    )
+    return (_to_decimal(row.rev), _to_decimal(row.profit), int(row.units or 0))
+
+
+def _sum_period(date_from, date_to):
+    # If aggregates exist for the range, use them; otherwise fallback.
+    any_agg = (
+        db.session.query(db.func.count(DailyMetric.id))
+        .filter(DailyMetric.metric_date >= date_from)
+        .filter(DailyMetric.metric_date <= date_to)
+        .scalar()
+    ) or 0
+    if any_agg > 0:
+        return _sum_period_agg(date_from, date_to)
+    return _sum_period_live(date_from, date_to)
+
+
 @main_bp.get("/dashboard")
 @login_required
 @require_role("viewer")
 def dashboard():
     today = datetime.utcnow().date()
-    start_7d = today - timedelta(days=6)           # last 7 days inclusive (today + 6 back)
-    start_month = today.replace(day=1)            # month-to-date
+    start_7d = today - timedelta(days=6)
+    start_month = today.replace(day=1)
 
     rev_7d, profit_7d, units_7d = _sum_period(start_7d, today)
     rev_mtd, profit_mtd, units_mtd = _sum_period(start_month, today)
@@ -56,7 +80,6 @@ def dashboard():
     margin_7d = (profit_7d / rev_7d * Decimal("100")) if rev_7d > 0 else Decimal("0")
     margin_mtd = (profit_mtd / rev_mtd * Decimal("100")) if rev_mtd > 0 else Decimal("0")
 
-    # Lines missing cost basis (helps identify SKUs with no purchase costs yet)
     missing_cost_lines_mtd = (
         db.session.query(db.func.count(SalesLine.id))
         .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
@@ -66,7 +89,6 @@ def dashboard():
         .scalar()
     ) or 0
 
-    # Top items by units (MTD)
     top_by_units = (
         db.session.query(
             SalesLine.sku.label("sku"),
@@ -84,7 +106,6 @@ def dashboard():
         .all()
     )
 
-    # Top items by profit (MTD)
     top_by_profit = (
         db.session.query(
             SalesLine.sku.label("sku"),
@@ -102,10 +123,7 @@ def dashboard():
         .all()
     )
 
-    # Recent orders (last 10) + totals map
-    recent_orders = (
-        SalesOrder.query.order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc()).limit(10).all()
-    )
+    recent_orders = SalesOrder.query.order_by(SalesOrder.order_date.desc(), SalesOrder.id.desc()).limit(10).all()
     recent_ids = [o.id for o in recent_orders]
 
     recent_totals_map = {}
@@ -122,11 +140,7 @@ def dashboard():
             .all()
         )
         recent_totals_map = {
-            oid: {
-                "rev": _to_decimal(rev),
-                "profit": _to_decimal(profit),
-                "units": int(units or 0),
-            }
+            oid: {"rev": _to_decimal(rev), "profit": _to_decimal(profit), "units": int(units or 0)}
             for oid, rev, profit, units in recent_totals
         }
 
