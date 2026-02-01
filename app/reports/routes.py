@@ -7,6 +7,7 @@ from flask_login import login_required
 from ..decorators import require_role
 from ..extensions import db
 from ..models import SalesOrder, SalesLine
+from ..models import DailyMetric, SkuMetricDaily
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
@@ -343,4 +344,89 @@ def sales_summary_csv():
         out.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=reports_sales_summary.csv"},
+    )
+
+@reports_bp.get("/trends")
+@login_required
+@require_role("viewer")
+def trends():
+    today = datetime.utcnow().date()
+    default_from = today - timedelta(days=29)  # last 30 days
+
+    d_from = _safe_date(request.args.get("from") or "") or default_from
+    d_to = _safe_date(request.args.get("to") or "") or today
+
+    rows = (
+        DailyMetric.query
+        .filter(DailyMetric.metric_date >= d_from)
+        .filter(DailyMetric.metric_date <= d_to)
+        .order_by(DailyMetric.metric_date.asc())
+        .all()
+    )
+
+    # Totals
+    total_rev = sum(Decimal(str(r.revenue_net or 0)) for r in rows)
+    total_profit = sum(Decimal(str(r.profit or 0)) for r in rows)
+    total_disc_net = sum(Decimal(str(r.discount_net or 0)) for r in rows)
+
+    total_margin = Decimal("0")
+    if total_rev > 0:
+        total_margin = (total_profit / total_rev) * Decimal("100")
+
+    return render_template(
+        "reports/trends.html",
+        d_from=d_from.isoformat(),
+        d_to=d_to.isoformat(),
+        rows=rows,
+        total_rev=total_rev,
+        total_profit=total_profit,
+        total_margin=total_margin,
+        total_disc_net=total_disc_net,
+    )
+
+@reports_bp.get("/trends.csv")
+@login_required
+@require_role("viewer")
+def trends_csv():
+    today = datetime.utcnow().date()
+    default_from = today - timedelta(days=29)
+
+    d_from = _safe_date(request.args.get("from") or "") or default_from
+    d_to = _safe_date(request.args.get("to") or "") or today
+
+    rows = (
+        DailyMetric.query
+        .filter(DailyMetric.metric_date >= d_from)
+        .filter(DailyMetric.metric_date <= d_to)
+        .order_by(DailyMetric.metric_date.asc())
+        .all()
+    )
+
+    import io, csv
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Date", "Orders", "Units", "Revenue Net", "COGS", "Profit", "Margin %", "Discount Net"])
+
+    for r in rows:
+        rev = Decimal(str(r.revenue_net or 0))
+        prof = Decimal(str(r.profit or 0))
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+
+        w.writerow([
+            r.metric_date.isoformat(),
+            int(r.orders_count or 0),
+            int(r.units or 0),
+            f"{rev:.2f}",
+            f"{Decimal(str(r.cogs or 0)):.2f}",
+            f"{prof:.2f}",
+            f"{margin:.2f}",
+            f"{Decimal(str(r.discount_net or 0)):.2f}",
+        ])
+
+    return Response(
+        out.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=reports_trends.csv"},
     )
