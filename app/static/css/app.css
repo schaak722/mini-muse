@@ -220,3 +220,38 @@ body{
   .grid{ grid-template-columns: 1fr; }
 }
 
+/* -------------------------
+   Badges (used in Sales Alerts)
+   ------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  border: 1px solid transparent;
+  margin-right: 6px;
+  user-select: none;
+}
+
+.badge--danger {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.25);
+  color: rgb(185, 28, 28);
+}
+
+.badge--warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: rgb(180, 83, 9);
+}
+
+.badge--info {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.25);
+  color: rgb(29, 78, 216);
+}
+
