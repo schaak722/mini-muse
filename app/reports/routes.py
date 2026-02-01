@@ -1,0 +1,346 @@
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
+
+from flask import Blueprint, Response, flash, redirect, render_template, request, url_for
+from flask_login import login_required
+
+from ..decorators import require_role
+from ..extensions import db
+from ..models import SalesOrder, SalesLine
+
+reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
+
+
+def _safe_date(val):
+    """
+    Supports: YYYY-MM-DD, DD/MM/YYYY, DD/MM/YY, YYYY-MM-DD HH:MM:SS
+    """
+    s = (val or "").strip()
+    if not s:
+        return None
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _safe_decimal(val, default=Decimal("0")):
+    if val is None:
+        return default
+    s = str(val).strip()
+    if s == "":
+        return default
+    s = s.replace(",", ".")
+    try:
+        return Decimal(s)
+    except InvalidOperation:
+        return default
+
+
+def _period_starts(today: date):
+    start_7d = today - timedelta(days=6)           # inclusive 7 days
+    start_month = today.replace(day=1)
+    start_year = today.replace(month=1, day=1)
+    return start_7d, start_month, start_year
+
+
+def _sum_sales_range(d_from: date, d_to: date):
+    """
+    Returns dict with: orders_count, units, revenue_net, profit, margin_pct,
+    discount_gross, discount_net (profit lost), profit_no_discount
+    """
+    # discount gross = line + allocated order discount
+    disc_gross = (
+        db.func.coalesce(SalesLine.line_discount_gross, 0) +
+        db.func.coalesce(SalesLine.order_discount_alloc_gross, 0)
+    )
+
+    # discount net = gross / (1 + vat/100)  (line-specific VAT rate)
+    vat_factor = db.literal(1) + (SalesLine.vat_rate / db.literal(100))
+    disc_net = disc_gross / vat_factor
+
+    row = (
+        db.session.query(
+            db.func.count(db.func.distinct(SalesOrder.id)).label("orders"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(disc_gross), 0).label("disc_gross"),
+            db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= d_from)
+        .filter(SalesOrder.order_date <= d_to)
+        .one()
+    )
+
+    rev = _safe_decimal(row.rev_net)
+    prof = _safe_decimal(row.profit)
+    disc_net_val = _safe_decimal(row.disc_net)
+
+    margin = Decimal("0")
+    if rev > 0:
+        margin = (prof / rev) * Decimal("100")
+
+    # Profit without discounts = profit + discount_net (costs unchanged)
+    prof_no_disc = prof + disc_net_val
+
+    return {
+        "orders_count": int(row.orders or 0),
+        "units": int(row.units or 0),
+        "revenue_net": rev,
+        "profit": prof,
+        "margin_pct": margin,
+        "discount_gross": _safe_decimal(row.disc_gross),
+        "discount_net": disc_net_val,                 # this is the profit lost to discounts (net)
+        "profit_no_discount": prof_no_disc,
+    }
+
+
+@reports_bp.get("")
+@login_required
+@require_role("viewer")
+def index():
+    today = datetime.utcnow().date()
+    start_7d, start_month, start_year = _period_starts(today)
+
+    kpi_7d = _sum_sales_range(start_7d, today)
+    kpi_mtd = _sum_sales_range(start_month, today)
+    kpi_ytd = _sum_sales_range(start_year, today)
+
+    # Top discount impact SKUs (MTD) — biggest net discount = biggest profit lost
+    disc_gross = (
+        db.func.coalesce(SalesLine.line_discount_gross, 0) +
+        db.func.coalesce(SalesLine.order_discount_alloc_gross, 0)
+    )
+    vat_factor = db.literal(1) + (SalesLine.vat_rate / db.literal(100))
+    disc_net = disc_gross / vat_factor
+
+    top_discount_skus = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+            db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= start_month)
+        .filter(SalesOrder.order_date <= today)
+        .group_by(SalesLine.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(disc_net), 0)))
+        .limit(10)
+        .all()
+    )
+
+    # Low/negative margin SKUs (MTD)
+    sku_rollup = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= start_month)
+        .filter(SalesOrder.order_date <= today)
+        .group_by(SalesLine.sku)
+        .all()
+    )
+
+    margin_threshold = Decimal("20")
+    neg_count = 0
+    low_count = 0
+    low_rows = []
+
+    for r in sku_rollup:
+        rev = _safe_decimal(r.rev_net)
+        prof = _safe_decimal(r.profit)
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+        if prof < 0:
+            neg_count += 1
+        if rev > 0 and margin < margin_threshold:
+            low_count += 1
+            low_rows.append(
+                {"sku": r.sku, "description": r.description or "", "rev_net": rev, "profit": prof, "margin": margin}
+            )
+
+    # show the worst 10
+    low_rows.sort(key=lambda x: (float(x["margin"]), float(x["profit"])))
+    low_rows = low_rows[:10]
+
+    return render_template(
+        "reports/index.html",
+        today=today.isoformat(),
+        kpi_7d=kpi_7d,
+        kpi_mtd=kpi_mtd,
+        kpi_ytd=kpi_ytd,
+        top_discount_skus=top_discount_skus,
+        low_margin_skus=low_rows,
+        neg_count=neg_count,
+        low_count=low_count,
+        margin_threshold=margin_threshold,
+    )
+
+
+@reports_bp.get("/sales-summary")
+@login_required
+@require_role("viewer")
+def sales_summary():
+    today = datetime.utcnow().date()
+    start_month = today.replace(day=1)
+
+    d_from = _safe_date(request.args.get("from") or "") or start_month
+    d_to = _safe_date(request.args.get("to") or "") or today
+    channel = (request.args.get("channel") or "").strip().lower()
+
+    if d_from > d_to:
+        flash("From date cannot be after To date.", "warning")
+        return redirect(url_for("reports.sales_summary"))
+
+    # Base query for the selected range (optional channel)
+    base_q = (
+        db.session.query(SalesLine, SalesOrder)
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= d_from)
+        .filter(SalesOrder.order_date <= d_to)
+    )
+    if channel:
+        base_q = base_q.filter(db.func.lower(SalesOrder.channel) == channel)
+
+    # KPI summary for selected range
+    kpi = _sum_sales_range(d_from, d_to) if not channel else _sum_sales_range(d_from, d_to)
+    # If channel is set, recompute KPI using channel filter (we need a channel-aware version)
+    if channel:
+        disc_gross = (
+            db.func.coalesce(SalesLine.line_discount_gross, 0) +
+            db.func.coalesce(SalesLine.order_discount_alloc_gross, 0)
+        )
+        vat_factor = db.literal(1) + (SalesLine.vat_rate / db.literal(100))
+        disc_net = disc_gross / vat_factor
+
+        row = (
+            db.session.query(
+                db.func.count(db.func.distinct(SalesOrder.id)).label("orders"),
+                db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
+                db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+                db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+                db.func.coalesce(db.func.sum(disc_gross), 0).label("disc_gross"),
+                db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
+            )
+            .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+            .filter(SalesOrder.order_date >= d_from)
+            .filter(SalesOrder.order_date <= d_to)
+            .filter(db.func.lower(SalesOrder.channel) == channel)
+            .one()
+        )
+
+        rev = _safe_decimal(row.rev_net)
+        prof = _safe_decimal(row.profit)
+        disc_net_val = _safe_decimal(row.disc_net)
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+
+        kpi = {
+            "orders_count": int(row.orders or 0),
+            "units": int(row.units or 0),
+            "revenue_net": rev,
+            "profit": prof,
+            "margin_pct": margin,
+            "discount_gross": _safe_decimal(row.disc_gross),
+            "discount_net": disc_net_val,
+            "profit_no_discount": prof + disc_net_val,
+        }
+
+    # Channel breakdown table (always useful, even if filtering on one channel)
+    ch_query = (
+        db.session.query(
+            SalesOrder.channel.label("channel"),
+            db.func.count(db.func.distinct(SalesOrder.id)).label("orders"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= d_from)
+        .filter(SalesOrder.order_date <= d_to)
+        .group_by(SalesOrder.channel)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0)))
+        .all()
+    )
+
+    # Channel dropdown values
+    channels = [r[0] for r in db.session.query(SalesOrder.channel).distinct().order_by(SalesOrder.channel.asc()).all()]
+
+    return render_template(
+        "reports/sales_summary.html",
+        d_from=d_from.isoformat(),
+        d_to=d_to.isoformat(),
+        channel=channel,
+        channels=channels,
+        kpi=kpi,
+        channel_rows=ch_query,
+    )
+
+
+@reports_bp.get("/sales-summary.csv")
+@login_required
+@require_role("viewer")
+def sales_summary_csv():
+    today = datetime.utcnow().date()
+    start_month = today.replace(day=1)
+
+    d_from = _safe_date(request.args.get("from") or "") or start_month
+    d_to = _safe_date(request.args.get("to") or "") or today
+
+    channel = (request.args.get("channel") or "").strip().lower()
+
+    q = (
+        db.session.query(
+            SalesOrder.channel.label("channel"),
+            db.func.count(db.func.distinct(SalesOrder.id)).label("orders"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+        .filter(SalesOrder.order_date >= d_from)
+        .filter(SalesOrder.order_date <= d_to)
+    )
+    if channel:
+        q = q.filter(db.func.lower(SalesOrder.channel) == channel)
+
+    rows = q.group_by(SalesOrder.channel).order_by(db.desc(db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0))).all()
+
+    # Simple CSV (small enough for v1; streaming is Phase 5)
+    import io, csv
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Channel", "Orders", "Units", "Revenue Net", "Profit", "Margin %"])
+
+    for r in rows:
+        rev = _safe_decimal(r.rev_net)
+        prof = _safe_decimal(r.profit)
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+
+        w.writerow([
+            r.channel,
+            int(r.orders or 0),
+            int(r.units or 0),
+            f"{rev:.2f}",
+            f"{prof:.2f}",
+            f"{margin:.2f}",
+        ])
+
+    return Response(
+        out.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=reports_sales_summary.csv"},
+    )
