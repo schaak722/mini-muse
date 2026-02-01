@@ -172,11 +172,10 @@ class SalesOrder(db.Model):
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        db.UniqueConstraint("channel", "order_number", name="uq_sales_orders_channel_order_number"),
-        db.Index("ix_sales_orders_order_date", "order_date"),
-        db.Index("ix_sales_orders_channel", "channel"),
+     __table_args__ = (
+        db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
     )
+
 
 
 class SalesLine(db.Model):
