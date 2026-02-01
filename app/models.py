@@ -221,7 +221,6 @@ class SalesLine(db.Model):
         db.Index("ix_sales_lines_item_id", "item_id"),
     )
 
-
 # -------------------------
 # Phase 4: Daily aggregates
 # -------------------------
