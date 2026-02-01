@@ -273,6 +273,4 @@ class SkuMetricDaily(db.Model):
 
     __table_args__ = (
         db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
-        db.Index("ix_sku_metrics_daily_date", "metric_date"),
-        db.Index("ix_sku_metrics_daily_sku", "sku"),
     )
