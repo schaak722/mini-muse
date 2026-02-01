@@ -221,3 +221,59 @@ class SalesLine(db.Model):
         db.Index("ix_sales_lines_sales_order_id", "sales_order_id"),
         db.Index("ix_sales_lines_item_id", "item_id"),
     )
+
+
+# -------------------------
+# Phase 4: Daily aggregates
+# -------------------------
+
+class DailyMetric(db.Model):
+    """
+    One row per calendar date across all channels.
+    Used for fast dashboard/reports.
+    """
+    __tablename__ = "daily_metrics"
+
+    id = db.Column(db.Integer, primary_key=True)
+    metric_date = db.Column(db.Date, nullable=False, unique=True, index=True)
+
+    orders_count = db.Column(db.Integer, nullable=False, default=0)
+    units = db.Column(db.Integer, nullable=False, default=0)
+
+    revenue_net = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    cogs = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    profit = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    discount_gross = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    discount_net = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SkuMetricDaily(db.Model):
+    """
+    One row per (date, sku).
+    Used for fast SKU widgets / reports.
+    """
+    __tablename__ = "sku_metrics_daily"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    metric_date = db.Column(db.Date, nullable=False, index=True)
+    sku = db.Column(db.String(80), nullable=False, index=True)
+
+    units = db.Column(db.Integer, nullable=False, default=0)
+    revenue_net = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    profit = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    discount_gross = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+    discount_net = db.Column(db.Numeric(14, 4), nullable=False, default=Decimal("0.0000"))
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
+        db.Index("ix_sku_metrics_daily_date", "metric_date"),
+        db.Index("ix_sku_metrics_daily_sku", "sku"),
+    )
