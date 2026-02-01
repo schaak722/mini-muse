@@ -258,7 +258,7 @@ def sales_order_detail(order_id: int):
     total_cost = sum(Decimal(str(l.cost_total or 0)) for l in lines)
     total_profit = sum(Decimal(str(l.profit or 0)) for l in lines)
 
-        # Discount analytics
+    # Discount analytics
     total_discount_gross = sum(
         Decimal(str((l.line_discount_gross or 0))) + Decimal(str((l.order_discount_alloc_gross or 0)))
         for l in lines
@@ -276,7 +276,7 @@ def sales_order_detail(order_id: int):
     # Profit if there were no discounts (net revenue + net discounts - cost)
     profit_no_discount = (total_rev_net + total_discount_net) - total_cost
     profit_lost_to_discounts = profit_no_discount - total_profit
-    
+
     margin = Decimal("0")
     if total_rev_net > 0:
         margin = (total_profit / total_rev_net) * Decimal("100")
