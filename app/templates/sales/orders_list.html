@@ -19,13 +19,23 @@
   </form>
 
   <div class="toolbar__right">
-    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.items_report', q=q, channel=channel, from=date_from, to=date_to) }}">Items report</a>
-    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.discount_report', q=q, channel=channel, from=date_from, to=date_to) }}">Discount report</a>
-    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.export_orders_csv', q=q, channel=channel, from=date_from, to=date_to) }}">Export CSV</a>
-    <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.alerts', q=q, channel=channel, from=date_from, to=date_to) }}">Alerts</a>
     {% if current_user.role != "viewer" %}
       <a class="btn btn--primary btn--sm" href="{{ url_for('sales.import_upload') }}">Import Sales CSV</a>
     {% endif %}
+  
+    <details class="dropdown">
+      <summary class="btn btn--ghost btn--sm dropdown__toggle">
+        More actions <span class="dropdown__chev">▾</span>
+      </summary>
+  
+      <div class="dropdown__menu">
+        <a class="dropdown__item" href="{{ url_for('sales.items_report', q=q, channel=channel, from=date_from, to=date_to) }}">Items report</a>
+        <a class="dropdown__item" href="{{ url_for('sales.discount_report', q=q, channel=channel, from=date_from, to=date_to) }}">Discount report</a>
+        <a class="dropdown__item" href="{{ url_for('sales.alerts', q=q, channel=channel, from=date_from, to=date_to) }}">Alerts</a>
+        <div class="dropdown__sep"></div>
+        <a class="dropdown__item" href="{{ url_for('sales.export_orders_csv', q=q, channel=channel, from=date_from, to=date_to) }}">Export CSV</a>
+      </div>
+    </details>
   </div>
 </div>
 
