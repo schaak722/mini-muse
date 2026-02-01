@@ -939,6 +939,228 @@ def discount_report_csv():
         headers={"Content-Disposition": "attachment; filename=sales_discount_report.csv"},
     )
 
+# -------------------------
+# Alerts: negative margin / low margin / high discount
+# -------------------------
+
+@sales_bp.get("/alerts")
+@login_required
+@require_role("viewer")
+def alerts():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    # Thresholds (defaults)
+    margin_threshold = _safe_decimal(request.args.get("margin") or "20", default=Decimal("20"))
+    discount_threshold = _safe_decimal(request.args.get("discount") or "15", default=Decimal("15"))
+
+    # Aggregate per SKU
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0).label("line_discount_gross"),
+            db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0).label("order_discount_alloc_gross"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = query.group_by(SalesLine.sku).all()
+
+    # Build alert rows in Python for reliable type math
+    alert_rows = []
+    counts = {"negative_profit": 0, "low_margin": 0, "high_discount": 0}
+
+    for r in rows:
+        rev_net = Decimal(str(r.revenue_net or 0))
+        profit = Decimal(str(r.profit or 0))
+        cost_total = Decimal(str(r.cost_total or 0))
+        qty_sold = int(r.qty_sold or 0)
+
+        disc_gross = Decimal(str(r.line_discount_gross or 0)) + Decimal(str(r.order_discount_alloc_gross or 0))
+
+        margin_pct = Decimal("0")
+        if rev_net > 0:
+            margin_pct = (profit / rev_net) * Decimal("100")
+
+        # Approx: net -> gross with 18% VAT (good enough for KPI/alerts; can refine later with VAT-rate weighting)
+        approx_gross_sales = rev_net * Decimal("1.18")
+        discount_pct = Decimal("0")
+        if approx_gross_sales > 0:
+            discount_pct = (disc_gross / approx_gross_sales) * Decimal("100")
+
+        is_negative = profit < 0
+        is_low_margin = (rev_net > 0) and (margin_pct < margin_threshold)
+        is_high_discount = (disc_gross > 0) and (discount_pct > discount_threshold)
+
+        if is_negative:
+            counts["negative_profit"] += 1
+        if is_low_margin:
+            counts["low_margin"] += 1
+        if is_high_discount:
+            counts["high_discount"] += 1
+
+        # Only show rows that trigger at least one alert
+        if is_negative or is_low_margin or is_high_discount:
+            alert_rows.append(
+                {
+                    "sku": r.sku,
+                    "description": r.description or "",
+                    "qty_sold": qty_sold,
+                    "revenue_net": rev_net,
+                    "cost_total": cost_total,
+                    "profit": profit,
+                    "margin_pct": margin_pct,
+                    "discount_gross": disc_gross,
+                    "discount_pct": discount_pct,
+                    "flag_negative": is_negative,
+                    "flag_low_margin": is_low_margin,
+                    "flag_high_discount": is_high_discount,
+                }
+            )
+
+    # Sort: worst first (negative profit at top, then lowest margin, then highest discount)
+    def _sort_key(x):
+        return (
+            0 if x["flag_negative"] else 1,
+            float(x["margin_pct"]),
+            -float(x["discount_pct"]),
+            -float(x["profit"]),
+        )
+
+    alert_rows.sort(key=_sort_key)
+
+    channels = [r[0] for r in db.session.query(SalesOrder.channel).distinct().order_by(SalesOrder.channel.asc()).all()]
+
+    return render_template(
+        "sales/alerts.html",
+        rows=alert_rows,
+        counts=counts,
+        q=q,
+        channel=channel,
+        date_from=(date_from.isoformat() if date_from else ""),
+        date_to=(date_to.isoformat() if date_to else ""),
+        channels=channels,
+        margin_threshold=margin_threshold,
+        discount_threshold=discount_threshold,
+    )
+
+
+@sales_bp.get("/alerts.csv")
+@login_required
+@require_role("viewer")
+def alerts_csv():
+    q = (request.args.get("q") or "").strip().lower()
+    channel = (request.args.get("channel") or "").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    margin_threshold = _safe_decimal(request.args.get("margin") or "20", default=Decimal("20"))
+    discount_threshold = _safe_decimal(request.args.get("discount") or "15", default=Decimal("15"))
+
+    # Reuse logic by calling alerts() would be messy; repeat the aggregation safely.
+    query = (
+        db.session.query(
+            SalesLine.sku.label("sku"),
+            db.func.max(SalesLine.description).label("description"),
+            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("qty_sold"),
+            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("revenue_net"),
+            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cost_total"),
+            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            db.func.coalesce(db.func.sum(SalesLine.line_discount_gross), 0).label("line_discount_gross"),
+            db.func.coalesce(db.func.sum(SalesLine.order_discount_alloc_gross), 0).label("order_discount_alloc_gross"),
+        )
+        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
+    )
+
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(SalesLine.sku).contains(q),
+                db.func.lower(SalesLine.description).contains(q),
+            )
+        )
+    if channel:
+        query = query.filter(db.func.lower(SalesOrder.channel) == channel)
+    if date_from:
+        query = query.filter(SalesOrder.order_date >= date_from)
+    if date_to:
+        query = query.filter(SalesOrder.order_date <= date_to)
+
+    rows = query.group_by(SalesLine.sku).all()
+
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow([
+        "SKU", "Description", "Qty Sold", "Revenue Net", "Cost Total", "Profit", "Margin %",
+        "Discount Gross", "Discount % (approx)", "NEGATIVE_PROFIT", "LOW_MARGIN", "HIGH_DISCOUNT"
+    ])
+
+    for r in rows:
+        rev_net = Decimal(str(r.revenue_net or 0))
+        profit = Decimal(str(r.profit or 0))
+        cost_total = Decimal(str(r.cost_total or 0))
+        qty_sold = int(r.qty_sold or 0)
+
+        disc_gross = Decimal(str(r.line_discount_gross or 0)) + Decimal(str(r.order_discount_alloc_gross or 0))
+
+        margin_pct = Decimal("0")
+        if rev_net > 0:
+            margin_pct = (profit / rev_net) * Decimal("100")
+
+        approx_gross_sales = rev_net * Decimal("1.18")
+        discount_pct = Decimal("0")
+        if approx_gross_sales > 0:
+            discount_pct = (disc_gross / approx_gross_sales) * Decimal("100")
+
+        flag_negative = profit < 0
+        flag_low_margin = (rev_net > 0) and (margin_pct < margin_threshold)
+        flag_high_discount = (disc_gross > 0) and (discount_pct > discount_threshold)
+
+        if flag_negative or flag_low_margin or flag_high_discount:
+            w.writerow([
+                r.sku,
+                r.description or "",
+                qty_sold,
+                f"{rev_net:.2f}",
+                f"{cost_total:.2f}",
+                f"{profit:.2f}",
+                f"{margin_pct:.2f}",
+                f"{disc_gross:.2f}",
+                f"{discount_pct:.2f}",
+                "YES" if flag_negative else "",
+                "YES" if flag_low_margin else "",
+                "YES" if flag_high_discount else "",
+            ])
+
+    csv_data = out.getvalue()
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sales_alerts.csv"},
+    )
 
 # -------------------------
 # Export CSV (orders list)
