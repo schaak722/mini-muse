@@ -128,10 +128,9 @@ def list_purchase_orders():
     date_from = _safe_date(request.args.get("from") or "")
     date_to = _safe_date(request.args.get("to") or "")
 
-    page = int(request.args.get("page") or 1)
-    per_page = 50
-    if page < 1:
-        page = 1
+    per_page = int(request.args.get("per_page") or 50)
+    if per_page not in (25, 50, 100):
+        per_page = 50
 
     query = PurchaseOrder.query
     if q:
