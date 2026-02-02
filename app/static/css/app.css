@@ -271,6 +271,13 @@ body{
   .grid{ grid-template-columns: 1fr; }
 }
 
+@media (max-width: 720px){
+  .search__dropdown{
+    width: calc(100vw - 32px);
+    right: -8px;
+  }
+}
+
 /* -------------------------
    Badges (used in Sales Alerts)
    ------------------------- */
