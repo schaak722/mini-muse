@@ -14,6 +14,7 @@ from ..models import (
     SkuMetricDaily,
 )
 from .forms import UserCreateForm, UserEditForm
+from ..models import AppState
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -222,6 +223,15 @@ def metrics_recompute():
             )
         )
 
+    # Store last recompute timestamp
+    state = AppState.query.filter_by(key="metrics_last_recompute").first()
+    ts = datetime.utcnow().isoformat() + "Z"
+    if not state:
+        state = AppState(key="metrics_last_recompute", value=ts)
+        db.session.add(state)
+    else:
+        state.value = ts
+    
     db.session.commit()
 
     flash(f"Metrics recomputed for {d_from.isoformat()} → {d_to.isoformat()}.", "success")
