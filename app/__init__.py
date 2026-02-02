@@ -26,6 +26,7 @@ def create_app():
     from .sales.routes import sales_bp
     from .reports.routes import reports_bp
     from .search.routes import search_bp
+    from .saved_searches.routes import saved_searches_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -35,6 +36,7 @@ def create_app():
     app.register_blueprint(sales_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(search_bp)
+    app.register_blueprint(saved_searches_bp)
 
 
     # Create tables + bootstrap first admin if needed
