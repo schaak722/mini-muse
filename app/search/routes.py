@@ -6,8 +6,11 @@ from ..decorators import require_role
 from ..extensions import db
 from ..models import Item, PurchaseOrder, PurchaseLine, SalesOrder, SalesLine
 
-search_bp = Blueprint("search", __name__, url_prefix="")
+import hashlib
+from ..utils.cache import TTLCache
 
+search_bp = Blueprint("search", __name__, url_prefix="")
+_search_cache = TTLCache(ttl_seconds=30, max_items=600)
 
 def _q(s: str) -> str:
     return (s or "").strip()
@@ -200,5 +203,14 @@ def api_search():
     if len(q) < 2:
         return jsonify({"q": q, "results": {"catalog": [], "purchases": [], "sales": []}})
 
-    results = run_global_search(q)
+    # Cache key: normalized q + role (viewer vs user/admin)
+    # (Role matters only if later you hide/expand results)
+    role = getattr(current_user, "role", "viewer") or "viewer"
+    key_raw = f"v1|{role}|{q.lower()}"
+    key = hashlib.sha1(key_raw.encode("utf-8")).hexdigest()
+
+    def build():
+        return run_global_search(q)
+
+    results = _search_cache.get_or_set(key, build)
     return jsonify({"q": q, "results": results})
