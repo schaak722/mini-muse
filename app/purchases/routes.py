@@ -2,13 +2,15 @@ import csv
 import io
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from urllib.parse import urlencode
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 from ..extensions import db
 from ..decorators import require_role, require_edit_permission
-from ..models import Item, PurchaseOrder, PurchaseLine, ImportBatch
+from ..models import Item, PurchaseOrder, PurchaseLine, ImportBatch, SavedSearch
+from ..utils.csv_stream import stream_csv
 from .forms import PurchaseCostsForm
 
 purchases_bp = Blueprint("purchases", __name__, url_prefix="/purchases")
@@ -83,31 +85,28 @@ def _recalc_allocations(po: PurchaseOrder):
     method = po.allocation_method or "value"
 
     if method == "qty":
-        base_total = sum(Decimal(ln.qty or 0) for ln in lines)
-        if base_total <= 0:
-            base_total = Decimal("1")
+        base_total = sum(Decimal(ln.qty or 0) for ln in lines) or Decimal("0")
         for ln in lines:
-            share = Decimal(ln.qty or 0) / base_total
-            alloc_total = (freight_total * share)
-            per_unit = (alloc_total / Decimal(ln.qty)) if ln.qty else Decimal("0")
-            ln.freight_allocated_total = alloc_total
-            ln.freight_allocated_per_unit = per_unit
+            base = Decimal(ln.qty or 0)
+            alloc = (freight_total * base / base_total) if base_total > 0 else Decimal("0")
+            ln.freight_allocated_total = alloc
+            qty = Decimal(ln.qty or 0) or Decimal("1")
+            ln.freight_allocated_per_unit = (alloc / qty) if qty > 0 else Decimal("0")
             pkg = Decimal(str(ln.packaging_per_unit)) if ln.packaging_per_unit is not None else Decimal("0")
-            ln.landed_unit_cost = Decimal(str(ln.unit_cost_net)) + per_unit + pkg
+            ln.landed_unit_cost = Decimal(str(ln.unit_cost_net)) + ln.freight_allocated_per_unit + pkg
+        db.session.commit()
+        return
 
-    else:  # value
-        base_total = sum(Decimal(str(ln.unit_cost_net)) * Decimal(ln.qty or 0) for ln in lines)
-        if base_total <= 0:
-            base_total = Decimal("1")
-        for ln in lines:
-            base = Decimal(str(ln.unit_cost_net)) * Decimal(ln.qty or 0)
-            share = base / base_total
-            alloc_total = (freight_total * share)
-            per_unit = (alloc_total / Decimal(ln.qty)) if ln.qty else Decimal("0")
-            ln.freight_allocated_total = alloc_total
-            ln.freight_allocated_per_unit = per_unit
-            pkg = Decimal(str(ln.packaging_per_unit)) if ln.packaging_per_unit is not None else Decimal("0")
-            ln.landed_unit_cost = Decimal(str(ln.unit_cost_net)) + per_unit + pkg
+    # default: value allocation
+    base_total = sum((Decimal(str(ln.unit_cost_net)) * Decimal(ln.qty or 0)) for ln in lines) or Decimal("0")
+    for ln in lines:
+        base = (Decimal(str(ln.unit_cost_net)) * Decimal(ln.qty or 0))
+        alloc = (freight_total * base / base_total) if base_total > 0 else Decimal("0")
+        ln.freight_allocated_total = alloc
+        qty = Decimal(ln.qty or 0) or Decimal("1")
+        ln.freight_allocated_per_unit = (alloc / qty) if qty > 0 else Decimal("0")
+        pkg = Decimal(str(ln.packaging_per_unit)) if ln.packaging_per_unit is not None else Decimal("0")
+        ln.landed_unit_cost = Decimal(str(ln.unit_cost_net)) + ln.freight_allocated_per_unit + pkg
 
     db.session.commit()
 
@@ -116,7 +115,23 @@ def _recalc_allocations(po: PurchaseOrder):
 @login_required
 @require_role("viewer")
 def list_purchase_orders():
+    """
+    Purchases list with:
+    - q search
+    - date range (order date or arrival date)
+    - pagination
+    - saved searches dropdown
+    """
     q = (request.args.get("q") or "").strip().lower()
+
+    date_field = (request.args.get("date_field") or "order").strip().lower()  # order|arrival
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    page = int(request.args.get("page") or 1)
+    per_page = 50
+    if page < 1:
+        page = 1
 
     query = PurchaseOrder.query
     if q:
@@ -128,8 +143,158 @@ def list_purchase_orders():
             )
         )
 
-    orders = query.order_by(PurchaseOrder.created_at.desc()).limit(200).all()
-    return render_template("purchases/orders_list.html", orders=orders, q=q)
+    col = PurchaseOrder.arrival_date if date_field == "arrival" else PurchaseOrder.order_date
+    if date_from:
+        query = query.filter(col >= date_from)
+    if date_to:
+        query = query.filter(col <= date_to)
+
+    total = query.count()
+    orders = (
+        query.order_by(PurchaseOrder.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    saved = (
+        SavedSearch.query
+        .filter_by(user_id=current_user.id, context="purchases")
+        .order_by(SavedSearch.created_at.desc())
+        .limit(20)
+        .all()
+    )
+
+    params = {
+        "q": q or "",
+        "date_field": date_field or "order",
+        "from": (date_from.isoformat() if date_from else ""),
+        "to": (date_to.isoformat() if date_to else ""),
+    }
+    qs_no_page = urlencode({k: v for k, v in params.items() if v != ""})
+
+    has_prev = page > 1
+    has_next = (page * per_page) < total
+
+    return render_template(
+        "purchases/orders_list.html",
+        orders=orders,
+        q=q,
+        date_field=date_field,
+        date_from=(date_from.isoformat() if date_from else ""),
+        date_to=(date_to.isoformat() if date_to else ""),
+        page=page,
+        per_page=per_page,
+        total=total,
+        has_prev=has_prev,
+        has_next=has_next,
+        qs_no_page=qs_no_page,
+        saved_searches=saved,
+    )
+
+
+@purchases_bp.get("/export.csv")
+@login_required
+@require_role("viewer")
+def export_purchase_orders_csv():
+    """
+    Streaming export of purchase orders with current filters.
+    """
+    q = (request.args.get("q") or "").strip().lower()
+    date_field = (request.args.get("date_field") or "order").strip().lower()
+    date_from = _safe_date(request.args.get("from") or "")
+    date_to = _safe_date(request.args.get("to") or "")
+
+    query = PurchaseOrder.query
+    if q:
+        query = query.filter(
+            db.or_(
+                db.func.lower(PurchaseOrder.order_number).contains(q),
+                db.func.lower(PurchaseOrder.supplier_name).contains(q),
+                db.func.lower(PurchaseOrder.brand).contains(q),
+            )
+        )
+
+    col = PurchaseOrder.arrival_date if date_field == "arrival" else PurchaseOrder.order_date
+    if date_from:
+        query = query.filter(col >= date_from)
+    if date_to:
+        query = query.filter(col <= date_to)
+
+    rows = query.order_by(PurchaseOrder.created_at.desc()).yield_per(500)
+
+    headers = [
+        "Order Number",
+        "Supplier",
+        "Brand",
+        "Order Date",
+        "Arrival Date",
+        "Currency",
+        "Freight Total",
+        "Allocation Method",
+    ]
+
+    def row_fn(po: PurchaseOrder):
+        return [
+            po.order_number or "",
+            po.supplier_name or "",
+            po.brand or "",
+            po.order_date.isoformat() if po.order_date else "",
+            po.arrival_date.isoformat() if po.arrival_date else "",
+            po.currency or "",
+            str(po.freight_total or ""),
+            po.allocation_method or "",
+        ]
+
+    return stream_csv(rows, headers, row_fn, filename="purchase_orders_export.csv")
+
+
+@purchases_bp.get("/<int:po_id>/export-lines.csv")
+@login_required
+@require_role("viewer")
+def export_purchase_lines_csv(po_id: int):
+    """
+    Streaming export of purchase lines (with landed costs) for a single PO.
+    """
+    po = db.session.get(PurchaseOrder, po_id)
+    if not po:
+        flash("Purchase order not found.", "danger")
+        return redirect(url_for("purchases.list_purchase_orders"))
+
+    rows = (
+        PurchaseLine.query
+        .filter_by(purchase_order_id=po.id)
+        .order_by(PurchaseLine.sku.asc())
+        .yield_per(500)
+    )
+
+    headers = [
+        "PO Number",
+        "SKU",
+        "Description",
+        "Qty",
+        "Unit Cost Net",
+        "Packaging/Unit",
+        "Freight/Unit",
+        "Landed/Unit",
+        "Freight Alloc Total",
+    ]
+
+    def row_fn(ln: PurchaseLine):
+        return [
+            po.order_number or "",
+            ln.sku or "",
+            ln.description or "",
+            int(ln.qty or 0),
+            str(ln.unit_cost_net or 0),
+            str(ln.packaging_per_unit or 0),
+            str(ln.freight_allocated_per_unit or 0),
+            str(ln.landed_unit_cost or 0),
+            str(ln.freight_allocated_total or 0),
+        ]
+
+    safe_po = (po.order_number or "po").replace(" ", "_")
+    return stream_csv(rows, headers, row_fn, filename=f"purchase_lines_{safe_po}.csv")
 
 
 @purchases_bp.get("/<int:po_id>")
@@ -390,6 +555,8 @@ def import_commit(batch_id: int):
     for po in new_pos:
         _recalc_allocations(po)
 
-    flash(f"Import complete. Created POs: {created_pos}, lines: {created_lines}, new SKUs: {created_items}.", "success")
+    flash(
+        f"Import complete. Created POs: {created_pos}, lines: {created_lines}, new SKUs: {created_items}.",
+        "success",
+    )
     return redirect(url_for("purchases.list_purchase_orders"))
-
