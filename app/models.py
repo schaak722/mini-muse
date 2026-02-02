@@ -49,6 +49,26 @@ class User(db.Model, UserMixin):
     def get_id(self):
         return str(self.id)
 
+class SavedSearch(db.Model):
+    __tablename__ = "saved_searches"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    context = db.Column(db.String(30), nullable=False)  # e.g. "sales", "purchases"
+    name = db.Column(db.String(80), nullable=False)
+
+    # Store a ready-to-use URL like "/sales?q=abc&from=2026-02-01..."
+    url = db.Column(db.String(600), nullable=False)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship("User", lazy=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("user_id", "context", "name", name="uq_saved_search_user_context_name"),
+    )
+
 
 # -------------------------
 # Phase 1: Catalog
