@@ -51,8 +51,14 @@
           <div class="page-title">{% block page_title %}Dashboard{% endblock %}</div>
         </div>
         <div class="topbar__right">
-          <div class="search">
-            <input id="globalSearch" class="search__input" placeholder="Search (Phase 5)..." disabled />
+          <div class="search"
+               data-api-url="{{ url_for('search.api_search') }}"
+               data-page-url="{{ url_for('search.search_page') }}">
+            <input id="globalSearch"
+                   class="search__input"
+                   placeholder="Search SKU, PO number, order number…"
+                   autocomplete="off" />
+            <div id="globalSearchDropdown" class="search__dropdown hidden"></div>
           </div>
         </div>
       </header>
