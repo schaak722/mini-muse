@@ -8,6 +8,7 @@ from ..decorators import require_role
 from ..extensions import db
 from ..models import SalesOrder, SalesLine
 from ..models import DailyMetric, SkuMetricDaily
+from ..models import DailyMetric, SkuMetricDaily, AppState
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/reports")
 
@@ -107,31 +108,76 @@ def index():
     today = datetime.utcnow().date()
     start_7d, start_month, start_year = _period_starts(today)
 
-    kpi_7d = _sum_sales_range(start_7d, today)
-    kpi_mtd = _sum_sales_range(start_month, today)
-    kpi_ytd = _sum_sales_range(start_year, today)
+    # Last recompute info
+    state = AppState.query.filter_by(key="metrics_last_recompute").first()
+    last_recompute = state.value if state else None
 
-    # Top discount impact SKUs (MTD) — biggest net discount = biggest profit lost
-    disc_gross = (
-        db.func.coalesce(SalesLine.line_discount_gross, 0) +
-        db.func.coalesce(SalesLine.order_discount_alloc_gross, 0)
+    # Pull KPI totals from aggregates (if missing, show zeros)
+    def _kpi_from_daily(d_from, d_to):
+        row = (
+            db.session.query(
+                db.func.coalesce(db.func.sum(DailyMetric.orders_count), 0).label("orders"),
+                db.func.coalesce(db.func.sum(DailyMetric.units), 0).label("units"),
+                db.func.coalesce(db.func.sum(DailyMetric.revenue_net), 0).label("rev"),
+                db.func.coalesce(db.func.sum(DailyMetric.cogs), 0).label("cogs"),
+                db.func.coalesce(db.func.sum(DailyMetric.profit), 0).label("profit"),
+                db.func.coalesce(db.func.sum(DailyMetric.discount_net), 0).label("disc_net"),
+            )
+            .filter(DailyMetric.metric_date >= d_from)
+            .filter(DailyMetric.metric_date <= d_to)
+            .one()
+        )
+
+        rev = _safe_decimal(row.rev)
+        prof = _safe_decimal(row.profit)
+        disc_net = _safe_decimal(row.disc_net)
+
+        margin = Decimal("0")
+        if rev > 0:
+            margin = (prof / rev) * Decimal("100")
+
+        return {
+            "orders_count": int(row.orders or 0),
+            "units": int(row.units or 0),
+            "revenue_net": rev,
+            "profit": prof,
+            "margin_pct": margin,
+            "discount_net": disc_net,
+            "profit_no_discount": prof + disc_net,
+        }
+
+    kpi_7d = _kpi_from_daily(start_7d, today)
+    kpi_mtd = _kpi_from_daily(start_month, today)
+    kpi_ytd = _kpi_from_daily(start_year, today)
+
+    # Top sold items (MTD) from sku_metrics_daily
+    top_skus_units = (
+        db.session.query(
+            SkuMetricDaily.sku,
+            db.func.coalesce(db.func.sum(SkuMetricDaily.units), 0).label("units"),
+            db.func.coalesce(db.func.sum(SkuMetricDaily.revenue_net), 0).label("rev"),
+            db.func.coalesce(db.func.sum(SkuMetricDaily.profit), 0).label("profit"),
+        )
+        .filter(SkuMetricDaily.metric_date >= start_month)
+        .filter(SkuMetricDaily.metric_date <= today)
+        .group_by(SkuMetricDaily.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SkuMetricDaily.units), 0)))
+        .limit(10)
+        .all()
     )
-    vat_factor = db.literal(1) + (SalesLine.vat_rate / db.literal(100))
-    disc_net = disc_gross / vat_factor
 
+    # Biggest discount impact SKUs (MTD) — discount_net = profit lost to discounts (net)
     top_discount_skus = (
         db.session.query(
-            SalesLine.sku.label("sku"),
-            db.func.max(SalesLine.description).label("description"),
-            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
-            db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
+            SkuMetricDaily.sku,
+            db.func.coalesce(db.func.sum(SkuMetricDaily.units), 0).label("units"),
+            db.func.coalesce(db.func.sum(SkuMetricDaily.revenue_net), 0).label("rev"),
+            db.func.coalesce(db.func.sum(SkuMetricDaily.discount_net), 0).label("disc_net"),
         )
-        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
-        .filter(SalesOrder.order_date >= start_month)
-        .filter(SalesOrder.order_date <= today)
-        .group_by(SalesLine.sku)
-        .order_by(db.desc(db.func.coalesce(db.func.sum(disc_net), 0)))
+        .filter(SkuMetricDaily.metric_date >= start_month)
+        .filter(SkuMetricDaily.metric_date <= today)
+        .group_by(SkuMetricDaily.sku)
+        .order_by(db.desc(db.func.coalesce(db.func.sum(SkuMetricDaily.discount_net), 0)))
         .limit(10)
         .all()
     )
@@ -139,15 +185,13 @@ def index():
     # Low/negative margin SKUs (MTD)
     sku_rollup = (
         db.session.query(
-            SalesLine.sku.label("sku"),
-            db.func.max(SalesLine.description).label("description"),
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
-            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
+            SkuMetricDaily.sku,
+            db.func.coalesce(db.func.sum(SkuMetricDaily.revenue_net), 0).label("rev"),
+            db.func.coalesce(db.func.sum(SkuMetricDaily.profit), 0).label("profit"),
         )
-        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
-        .filter(SalesOrder.order_date >= start_month)
-        .filter(SalesOrder.order_date <= today)
-        .group_by(SalesLine.sku)
+        .filter(SkuMetricDaily.metric_date >= start_month)
+        .filter(SkuMetricDaily.metric_date <= today)
+        .group_by(SkuMetricDaily.sku)
         .all()
     )
 
@@ -156,21 +200,19 @@ def index():
     low_count = 0
     low_rows = []
 
-    for r in sku_rollup:
-        rev = _safe_decimal(r.rev_net)
-        prof = _safe_decimal(r.profit)
+    for sku, rev_raw, prof_raw in sku_rollup:
+        rev = _safe_decimal(rev_raw)
+        prof = _safe_decimal(prof_raw)
         margin = Decimal("0")
         if rev > 0:
             margin = (prof / rev) * Decimal("100")
+
         if prof < 0:
             neg_count += 1
         if rev > 0 and margin < margin_threshold:
             low_count += 1
-            low_rows.append(
-                {"sku": r.sku, "description": r.description or "", "rev_net": rev, "profit": prof, "margin": margin}
-            )
+            low_rows.append({"sku": sku, "rev_net": rev, "profit": prof, "margin": margin})
 
-    # show the worst 10
     low_rows.sort(key=lambda x: (float(x["margin"]), float(x["profit"])))
     low_rows = low_rows[:10]
 
@@ -180,6 +222,8 @@ def index():
         kpi_7d=kpi_7d,
         kpi_mtd=kpi_mtd,
         kpi_ytd=kpi_ytd,
+        last_recompute=last_recompute,
+        top_skus_units=top_skus_units,
         top_discount_skus=top_discount_skus,
         low_margin_skus=low_rows,
         neg_count=neg_count,
