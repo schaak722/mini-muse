@@ -11,7 +11,6 @@
   {% endif %}
 </div>
 
-
 <div class="grid">
   <div class="card">
     <div class="card__label">Revenue (net) — last 7 days</div>
@@ -55,6 +54,7 @@
 </div>
 
 <div class="grid mt-16">
+  <!-- Card 1: Biggest discount impact -->
   <div class="card">
     <div class="card__header">
       <div>
@@ -90,41 +90,43 @@
     </div>
   </div>
 
+  <!-- Card 2: Top sold items -->
   <div class="card">
-  <div class="card__header">
-    <div>
-      <div class="h2">Top sold items (MTD)</div>
-      <div class="muted">By units sold</div>
+    <div class="card__header">
+      <div>
+        <div class="h2">Top sold items (MTD)</div>
+        <div class="muted">By units sold</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th class="td-right">Units</th>
+            <th class="td-right">Revenue (net)</th>
+            <th class="td-right">Profit</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in top_skus_units %}
+            <tr>
+              <td><strong>{{ r.sku }}</strong></td>
+              <td class="td-right">{{ r.units or 0 }}</td>
+              <td class="td-right">{{ "%.2f"|format(r.rev or 0) }}</td>
+              <td class="td-right">{{ "%.2f"|format(r.profit or 0) }}</td>
+            </tr>
+          {% endfor %}
+          {% if top_skus_units|length == 0 %}
+            <tr><td colspan="4" class="muted">No aggregate data yet. Recompute metrics.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
     </div>
   </div>
 
-  <div class="table-wrap">
-    <table class="table">
-      <thead>
-        <tr>
-          <th>SKU</th>
-          <th class="td-right">Units</th>
-          <th class="td-right">Revenue (net)</th>
-          <th class="td-right">Profit</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in top_skus_units %}
-          <tr>
-            <td><strong>{{ r.sku }}</strong></td>
-            <td class="td-right">{{ r.units or 0 }}</td>
-            <td class="td-right">{{ "%.2f"|format(r.rev or 0) }}</td>
-            <td class="td-right">{{ "%.2f"|format(r.profit or 0) }}</td>
-          </tr>
-        {% endfor %}
-        {% if top_skus_units|length == 0 %}
-          <tr><td colspan="4" class="muted">No aggregate data yet. Recompute metrics.</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-</div>
-
+  <!-- Card 3: Low / Negative margin -->
   <div class="card">
     <div class="card__header">
       <div>
@@ -140,7 +142,6 @@
         <thead>
           <tr>
             <th>SKU</th>
-            <th>Description</th>
             <th class="td-right">Revenue (net)</th>
             <th class="td-right">Profit</th>
             <th class="td-right">Margin %</th>
@@ -150,14 +151,13 @@
           {% for r in low_margin_skus %}
             <tr>
               <td><strong>{{ r.sku }}</strong></td>
-              <td class="muted">{{ r.description }}</td>
               <td class="td-right">{{ "%.2f"|format(r.rev_net) }}</td>
               <td class="td-right">{{ "%.2f"|format(r.profit) }}</td>
               <td class="td-right">{{ "%.2f"|format(r.margin) }}</td>
             </tr>
           {% endfor %}
           {% if low_margin_skus|length == 0 %}
-            <tr><td colspan="5" class="muted">No low-margin SKUs detected for MTD.</td></tr>
+            <tr><td colspan="4" class="muted">No low-margin SKUs detected for MTD.</td></tr>
           {% endif %}
         </tbody>
       </table>
@@ -170,4 +170,3 @@
 </div>
 
 {% endblock %}
-
