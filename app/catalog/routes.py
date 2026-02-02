@@ -10,8 +10,12 @@ from ..decorators import require_role, require_edit_permission
 from ..models import Item
 from .forms import ItemForm
 
-catalog_bp = Blueprint("catalog", __name__, url_prefix="/catalog")
+import hashlib
+from ..utils.cache import TTLCache
 
+
+catalog_bp = Blueprint("catalog", __name__, url_prefix="/catalog")
+_catalog_cache = TTLCache(ttl_seconds=45, max_items=800)
 
 def _safe_decimal(val, default=None):
     if val is None:
@@ -310,50 +314,28 @@ def import_csv():
 @catalog_bp.get("/api/search")
 @login_required
 @require_role("viewer")
-def api_search():
-    """
-    Fast typeahead endpoint: returns top 50 matches.
-    """
+def api_search_items():
     q = (request.args.get("q") or "").strip()
-    brand = (request.args.get("brand") or "").strip()
-    supplier = (request.args.get("supplier") or "").strip()
-    status = (request.args.get("status") or "active").strip()
+    if len(q) < 2:
+        return jsonify([])
 
-    query = Item.query
-    if q:
+    key_raw = f"v1|{q.lower()}"
+    key = hashlib.sha1(key_raw.encode("utf-8")).hexdigest()
+
+    def build():
         ql = q.lower()
-        query = query.filter(
-            db.or_(
-                db.func.lower(Item.sku).contains(ql),
-                db.func.lower(Item.description).contains(ql),
+        rows = (
+            Item.query
+            .filter(
+                db.or_(
+                    db.func.lower(Item.sku).contains(ql),
+                    db.func.lower(Item.description).contains(ql),
+                )
             )
+            .order_by(Item.sku.asc())
+            .limit(12)
+            .all()
         )
-    if brand:
-        query = query.filter(db.func.lower(Item.brand).contains(brand.lower()))
-    if supplier:
-        query = query.filter(db.func.lower(Item.supplier).contains(supplier.lower()))
-    if status == "active":
-        query = query.filter(Item.is_active.is_(True))
-    elif status == "inactive":
-        query = query.filter(Item.is_active.is_(False))
+        return [{"sku": r.sku, "description": r.description or ""} for r in rows]
 
-    items = query.order_by(Item.sku.asc()).limit(50).all()
-
-    return jsonify({
-        "items": [
-            {
-                "id": it.id,
-                "sku": it.sku,
-                "description": it.description,
-                "brand": it.brand or "",
-                "supplier": it.supplier or "",
-                "colour": it.colour or "",
-                "size": it.size or "",
-                "weight": str(it.weight or ""),
-                "vat_rate": str(it.vat_rate),
-                "active": it.is_active,
-            }
-            for it in items
-        ]
-    })
-
+    return jsonify(_catalog_cache.get_or_set(key, build))
