@@ -285,3 +285,16 @@ class SkuMetricDaily(db.Model):
     __table_args__ = (
         db.UniqueConstraint("metric_date", "sku", name="uq_sku_metrics_daily_date_sku"),
     )
+
+class AppState(db.Model):
+    """
+    Single-row key/value store for simple app-level metadata.
+    Used here to track when aggregates were last recomputed.
+    """
+    __tablename__ = "app_state"
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(80), unique=True, index=True, nullable=False)
+    value = db.Column(db.String(255), nullable=True)
+
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
