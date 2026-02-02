@@ -18,11 +18,45 @@
     <a class="btn btn--ghost btn--sm" href="{{ url_for('sales.list_sales_orders') }}">Reset</a>
   </form>
 
-  <div class="toolbar__right">
-    {% if current_user.role != "viewer" %}
-      <a class="btn btn--primary btn--sm" href="{{ url_for('sales.import_upload') }}">Import Sales CSV</a>
-    {% endif %}
-  
+<div class="toolbar__right">
+  {% if current_user.role != "viewer" %}
+    <a class="btn btn--primary btn--sm" href="{{ url_for('sales.import_upload') }}">Import Sales CSV</a>
+  {% endif %}
+
+      <details class="dropdown">
+    <summary class="btn btn--ghost btn--sm dropdown__toggle">
+      Saved <span class="dropdown__chev">▾</span>
+    </summary>
+    <div class="dropdown__menu">
+      {% for ss in saved_searches %}
+        <a class="dropdown__item" href="{{ ss.url }}">{{ ss.name }}</a>
+        {% if current_user.role != "viewer" %}
+          <form method="post" action="{{ url_for('saved_searches.delete', saved_id=ss.id) }}" style="display:inline;">
+            <button class="dropdown__item" type="submit" style="color:#b42318;">Delete "{{ ss.name }}"</button>
+          </form>
+        {% endif %}
+        <div class="dropdown__sep"></div>
+      {% endfor %}
+      {% if saved_searches|length == 0 %}
+        <div class="dropdown__item muted">No saved searches yet.</div>
+        <div class="dropdown__sep"></div>
+      {% endif %}
+
+      {% if current_user.role != "viewer" %}
+        <div class="dropdown__item muted">Save current filters</div>
+        <form method="post" action="{{ url_for('saved_searches.save') }}" style="padding:10px;">
+          <input type="hidden" name="context" value="sales">
+          <input type="hidden" name="q" value="{{ q }}">
+          <input type="hidden" name="channel" value="{{ channel }}">
+          <input type="hidden" name="from" value="{{ date_from }}">
+          <input type="hidden" name="to" value="{{ date_to }}">
+          <input class="input input--sm" name="name" placeholder="Name (e.g. MTD Shopify)" style="width:100%; margin-bottom:8px;">
+          <button class="btn btn--primary btn--sm" type="submit" style="width:100%;">Save</button>
+        </form>
+      {% endif %}
+    </div>
+  </details>
+    
     <details class="dropdown">
       <summary class="btn btn--ghost btn--sm dropdown__toggle">
         More actions <span class="dropdown__chev">▾</span>
@@ -83,6 +117,20 @@
       {% endif %}
     </tbody>
   </table>
+</div>
+
+<div class="toolbar mt-16">
+  <div class="toolbar__left muted">
+    Showing {{ (page-1)*per_page + 1 if total > 0 else 0 }}–{{ (page-1)*per_page + orders|length }} of {{ total }}
+  </div>
+  <div class="toolbar__right">
+    {% if has_prev %}
+      <a class="btn btn--ghost btn--sm" href="?{% if qs_no_page %}{{ qs_no_page }}&{% endif %}page={{ page-1 }}">Prev</a>
+    {% endif %}
+    {% if has_next %}
+      <a class="btn btn--ghost btn--sm" href="?{% if qs_no_page %}{{ qs_no_page }}&{% endif %}page={{ page+1 }}">Next</a>
+    {% endif %}
+  </div>
 </div>
 
 {% endblock %}
