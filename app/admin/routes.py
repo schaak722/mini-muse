@@ -1,35 +1,18 @@
-from datetime import datetime
-from decimal import Decimal, InvalidOperation
-
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
+from sqlalchemy import text
 
 from ..decorators import require_admin
 from ..extensions import db
-from ..models import (
-    User,
-    SalesOrder,
-    SalesLine,
-    DailyMetric,
-    SkuMetricDaily,
-)
+from ..models import User
 from .forms import UserCreateForm, UserEditForm
-from ..models import AppState
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 
-def _safe_date(val):
-    s = (val or "").strip()
-    if not s:
-        return None
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y"):
-        try:
-            return datetime.strptime(s, fmt).date()
-        except ValueError:
-            continue
-    return None
-
+# -----------------------
+# Users
+# -----------------------
 
 @admin_bp.get("/users")
 @login_required
@@ -112,127 +95,326 @@ def users_edit(user_id: int):
     return render_template("admin/user_form.html", form=form, mode="edit", user=user)
 
 
-# -------------------------
-# Phase 4: Metrics recompute
-# -------------------------
+# -----------------------
+# DB Patch (poor-man's migrations)
+# -----------------------
 
-@admin_bp.get("/metrics")
+def _db_patch_statements():
+    """
+    Idempotent schema patch for common drift points.
+    Safe to run repeatedly.
+    """
+    stmts = []
+
+    # ---- saved_searches
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS saved_searches (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      context VARCHAR(40) NOT NULL,
+      name VARCHAR(120) NOT NULL,
+      params JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_saved_searches_user_id'
+      ) THEN
+        ALTER TABLE saved_searches
+          ADD CONSTRAINT fk_saved_searches_user_id
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_saved_search_user_context_name'
+      ) THEN
+        ALTER TABLE saved_searches
+          ADD CONSTRAINT uq_saved_search_user_context_name UNIQUE (user_id, context, name);
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_saved_searches_user_id ON saved_searches(user_id);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_saved_searches_context ON saved_searches(context);")
+
+    # ---- import_batches (preview/resolve)
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS import_batches (
+      id SERIAL PRIMARY KEY,
+      kind VARCHAR(40),
+      filename VARCHAR(255),
+      payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("ALTER TABLE import_batches ADD COLUMN IF NOT EXISTS kind VARCHAR(40);")
+    stmts.append("ALTER TABLE import_batches ADD COLUMN IF NOT EXISTS filename VARCHAR(255);")
+    stmts.append("ALTER TABLE import_batches ADD COLUMN IF NOT EXISTS payload JSONB NOT NULL DEFAULT '{}'::jsonb;")
+    stmts.append("ALTER TABLE import_batches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_import_batches_kind ON import_batches(kind);")
+
+    # ---- purchase_orders / purchase_lines
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS purchase_orders (
+      id SERIAL PRIMARY KEY,
+      supplier_name VARCHAR(120),
+      brand VARCHAR(80),
+      order_number VARCHAR(80),
+      order_date DATE,
+      arrival_date DATE,
+      currency VARCHAR(10),
+      freight_total NUMERIC(12,2),
+      allocation_method VARCHAR(20),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_name VARCHAR(120);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS brand VARCHAR(80);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS order_number VARCHAR(80);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS order_date DATE;")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS arrival_date DATE;")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS currency VARCHAR(10);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS freight_total NUMERIC(12,2);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS allocation_method VARCHAR(20);")
+    stmts.append("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_purchase_orders_order_number ON purchase_orders(order_number);")
+
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS purchase_lines (
+      id SERIAL PRIMARY KEY,
+      purchase_order_id INTEGER NOT NULL,
+      item_id INTEGER,
+      sku VARCHAR(80),
+      description VARCHAR(255),
+      colour VARCHAR(80),
+      size VARCHAR(40),
+      qty INTEGER,
+      unit_cost_net NUMERIC(12,4),
+      packaging_per_unit NUMERIC(12,4),
+      freight_allocated_total NUMERIC(12,4),
+      freight_allocated_per_unit NUMERIC(12,4),
+      landed_unit_cost NUMERIC(12,4),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS purchase_order_id INTEGER;")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS item_id INTEGER;")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS sku VARCHAR(80);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS description VARCHAR(255);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS colour VARCHAR(80);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS size VARCHAR(40);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS qty INTEGER;")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS unit_cost_net NUMERIC(12,4);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS packaging_per_unit NUMERIC(12,4);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS freight_allocated_total NUMERIC(12,4);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS freight_allocated_per_unit NUMERIC(12,4);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS landed_unit_cost NUMERIC(12,4);")
+    stmts.append("ALTER TABLE purchase_lines ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();")
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_lines_po'
+      ) THEN
+        ALTER TABLE purchase_lines
+          ADD CONSTRAINT fk_purchase_lines_po
+          FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_purchase_lines_sku ON purchase_lines(sku);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_purchase_lines_purchase_order_id ON purchase_lines(purchase_order_id);")
+
+    # ---- sales_orders / sales_lines
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS sales_orders (
+      id SERIAL PRIMARY KEY,
+      order_number VARCHAR(80) NOT NULL,
+      order_date DATE,
+      channel VARCHAR(40) NOT NULL DEFAULT 'unknown',
+      currency VARCHAR(10) DEFAULT 'EUR',
+      customer_name VARCHAR(120),
+      customer_email VARCHAR(255),
+      shipping_charged_gross NUMERIC(12,2),
+      order_discount_gross NUMERIC(12,2),
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS order_number VARCHAR(80);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS order_date DATE;")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS channel VARCHAR(40);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS currency VARCHAR(10);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS customer_name VARCHAR(120);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS customer_email VARCHAR(255);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS shipping_charged_gross NUMERIC(12,2);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS order_discount_gross NUMERIC(12,2);")
+    stmts.append("ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();")
+
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sales_orders_order_date ON sales_orders(order_date);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sales_orders_channel ON sales_orders(channel);")
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_sales_orders_channel_order_number'
+      ) THEN
+        ALTER TABLE sales_orders
+          ADD CONSTRAINT uq_sales_orders_channel_order_number UNIQUE (channel, order_number);
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS sales_lines (
+      id SERIAL PRIMARY KEY,
+      sales_order_id INTEGER NOT NULL,
+      item_id INTEGER,
+      sku VARCHAR(80),
+      description VARCHAR(255),
+      qty INTEGER,
+      unit_price_gross NUMERIC(12,4),
+      line_discount_gross NUMERIC(12,4),
+      order_discount_alloc_gross NUMERIC(12,4),
+      vat_rate NUMERIC(5,2),
+      unit_price_net NUMERIC(12,4),
+      revenue_net NUMERIC(12,4),
+      cost_method VARCHAR(20),
+      unit_cost_basis NUMERIC(12,4),
+      cost_total NUMERIC(12,4),
+      profit NUMERIC(12,4),
+      cost_source_po_id INTEGER,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS sales_order_id INTEGER;")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS item_id INTEGER;")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS sku VARCHAR(80);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS description VARCHAR(255);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS qty INTEGER;")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS unit_price_gross NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS line_discount_gross NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS order_discount_alloc_gross NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS vat_rate NUMERIC(5,2);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS unit_price_net NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS revenue_net NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS cost_method VARCHAR(20);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS unit_cost_basis NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS cost_total NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS profit NUMERIC(12,4);")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS cost_source_po_id INTEGER;")
+    stmts.append("ALTER TABLE sales_lines ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW();")
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_sales_lines_so'
+      ) THEN
+        ALTER TABLE sales_lines
+          ADD CONSTRAINT fk_sales_lines_so
+          FOREIGN KEY (sales_order_id) REFERENCES sales_orders(id) ON DELETE CASCADE;
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sales_lines_sku ON sales_lines(sku);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sales_lines_sales_order_id ON sales_lines(sales_order_id);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sales_lines_item_id ON sales_lines(item_id);")
+
+    # ---- dashboard metrics tables (Phase 4)
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS daily_metrics (
+      id SERIAL PRIMARY KEY,
+      metric_date DATE NOT NULL UNIQUE,
+      revenue_net NUMERIC(14,2) NOT NULL DEFAULT 0,
+      cogs NUMERIC(14,2) NOT NULL DEFAULT 0,
+      profit NUMERIC(14,2) NOT NULL DEFAULT 0,
+      discount_net NUMERIC(14,2) NOT NULL DEFAULT 0,
+      orders_count INTEGER NOT NULL DEFAULT 0,
+      recomputed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("""
+    CREATE TABLE IF NOT EXISTS sku_metrics_daily (
+      id SERIAL PRIMARY KEY,
+      metric_date DATE NOT NULL,
+      sku VARCHAR(80) NOT NULL,
+      units INTEGER NOT NULL DEFAULT 0,
+      revenue_net NUMERIC(14,2) NOT NULL DEFAULT 0,
+      profit NUMERIC(14,2) NOT NULL DEFAULT 0,
+      disc_net NUMERIC(14,2) NOT NULL DEFAULT 0,
+      recomputed_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    """)
+
+    stmts.append("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_sku_metrics_daily_date_sku'
+      ) THEN
+        ALTER TABLE sku_metrics_daily
+          ADD CONSTRAINT uq_sku_metrics_daily_date_sku UNIQUE (metric_date, sku);
+      END IF;
+    END$$;
+    """)
+
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sku_metrics_daily_sku ON sku_metrics_daily(sku);")
+    stmts.append("CREATE INDEX IF NOT EXISTS ix_sku_metrics_daily_date ON sku_metrics_daily(metric_date);")
+
+    return [s.strip() for s in stmts if s.strip()]
+
+
+@admin_bp.get("/db-patch")
 @login_required
 @require_admin
-def metrics_home():
-    # Default range: month to date
-    today = datetime.utcnow().date()
-    start_month = today.replace(day=1)
-    return render_template(
-        "admin/metrics_recompute.html",
-        d_from=start_month.isoformat(),
-        d_to=today.isoformat(),
-    )
+def db_patch_home():
+    return render_template("admin/db_patch.html", results=None, error=None)
 
 
-@admin_bp.post("/metrics/recompute")
+@admin_bp.post("/db-patch")
 @login_required
 @require_admin
-def metrics_recompute():
-    d_from = _safe_date(request.form.get("from") or "")
-    d_to = _safe_date(request.form.get("to") or "")
+def db_patch_run():
+    results = []
+    error = None
+    stmts = _db_patch_statements()
 
-    if not d_from or not d_to:
-        flash("Please provide both From and To dates.", "danger")
-        return redirect(url_for("admin.metrics_home"))
+    try:
+        for sql in stmts:
+            try:
+                db.session.execute(text(sql))
+                results.append({"ok": True, "sql": sql})
+            except Exception as e:
+                results.append({"ok": False, "sql": sql})
+                raise
 
-    if d_from > d_to:
-        flash("From date cannot be after To date.", "danger")
-        return redirect(url_for("admin.metrics_home"))
+        db.session.commit()
+        flash("DB patch completed successfully.", "success")
 
-    # Delete existing rows in range
-    DailyMetric.query.filter(DailyMetric.metric_date >= d_from, DailyMetric.metric_date <= d_to).delete(synchronize_session=False)
-    SkuMetricDaily.query.filter(SkuMetricDaily.metric_date >= d_from, SkuMetricDaily.metric_date <= d_to).delete(synchronize_session=False)
+    except Exception as e:
+        db.session.rollback()
+        error = str(e)
+        flash("DB patch failed. See details below.", "danger")
 
-    # Expressions for discount calculations
-    disc_gross = (
-        db.func.coalesce(SalesLine.line_discount_gross, 0) +
-        db.func.coalesce(SalesLine.order_discount_alloc_gross, 0)
-    )
-    vat_factor = db.literal(1) + (SalesLine.vat_rate / db.literal(100))
-    disc_net = disc_gross / vat_factor
-
-    # Daily totals
-    daily_rows = (
-        db.session.query(
-            SalesOrder.order_date.label("d"),
-            db.func.count(db.func.distinct(SalesOrder.id)).label("orders"),
-            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
-            db.func.coalesce(db.func.sum(SalesLine.cost_total), 0).label("cogs"),
-            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
-            db.func.coalesce(db.func.sum(disc_gross), 0).label("disc_gross"),
-            db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
-        )
-        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
-        .filter(SalesOrder.order_date >= d_from)
-        .filter(SalesOrder.order_date <= d_to)
-        .group_by(SalesOrder.order_date)
-        .order_by(SalesOrder.order_date.asc())
-        .all()
-    )
-
-    for r in daily_rows:
-        db.session.add(
-            DailyMetric(
-                metric_date=r.d,
-                orders_count=int(r.orders or 0),
-                units=int(r.units or 0),
-                revenue_net=Decimal(str(r.rev_net or 0)),
-                cogs=Decimal(str(r.cogs or 0)),
-                profit=Decimal(str(r.profit or 0)),
-                discount_gross=Decimal(str(r.disc_gross or 0)),
-                discount_net=Decimal(str(r.disc_net or 0)),
-            )
-        )
-
-    # SKU daily rollups
-    sku_rows = (
-        db.session.query(
-            SalesOrder.order_date.label("d"),
-            SalesLine.sku.label("sku"),
-            db.func.coalesce(db.func.sum(SalesLine.qty), 0).label("units"),
-            db.func.coalesce(db.func.sum(SalesLine.revenue_net), 0).label("rev_net"),
-            db.func.coalesce(db.func.sum(SalesLine.profit), 0).label("profit"),
-            db.func.coalesce(db.func.sum(disc_gross), 0).label("disc_gross"),
-            db.func.coalesce(db.func.sum(disc_net), 0).label("disc_net"),
-        )
-        .join(SalesOrder, SalesLine.sales_order_id == SalesOrder.id)
-        .filter(SalesOrder.order_date >= d_from)
-        .filter(SalesOrder.order_date <= d_to)
-        .group_by(SalesOrder.order_date, SalesLine.sku)
-        .order_by(SalesOrder.order_date.asc())
-        .all()
-    )
-
-    for r in sku_rows:
-        db.session.add(
-            SkuMetricDaily(
-                metric_date=r.d,
-                sku=r.sku,
-                units=int(r.units or 0),
-                revenue_net=Decimal(str(r.rev_net or 0)),
-                profit=Decimal(str(r.profit or 0)),
-                discount_gross=Decimal(str(r.disc_gross or 0)),
-                discount_net=Decimal(str(r.disc_net or 0)),
-            )
-        )
-
-    # Store last recompute timestamp
-    state = AppState.query.filter_by(key="metrics_last_recompute").first()
-    ts = datetime.utcnow().isoformat() + "Z"
-    if not state:
-        state = AppState(key="metrics_last_recompute", value=ts)
-        db.session.add(state)
-    else:
-        state.value = ts
-    
-    db.session.commit()
-
-    flash(f"Metrics recomputed for {d_from.isoformat()} → {d_to.isoformat()}.", "success")
-    return redirect(url_for("admin.metrics_home"))
+    # show newest first
+    results = list(reversed(results))
+    return render_template("admin/db_patch.html", results=results, error=error)
