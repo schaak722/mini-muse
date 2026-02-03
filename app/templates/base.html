@@ -33,6 +33,7 @@
         {% if current_user.is_authenticated and current_user.is_admin %}
           <div class="nav__section">Admin</div>
           <a class="nav__item" href="{{ url_for('admin.users_list') }}">Users</a>
+          <a class="nav__item" href="{{ url_for('admin.db_patch_home') }}">DB Patch</a>
         {% endif %}
       </nav>
 
