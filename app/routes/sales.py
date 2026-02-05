@@ -1,6 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 from flask import render_template, redirect, url_for, flash
 from flask_login import login_required, current_user
+from sqlalchemy import or_
 from . import routes_bp
 from ..extensions import db
 from ..models import Item, Sale, AuditLog
@@ -38,7 +39,18 @@ def sales_list():
 @login_required
 def sales_new():
     form = SaleForm()
-    return render_template("sales/new.html", active_nav="sales", form=form)
+
+    # Build dropdown choices for IN_STOCK items
+    items = (
+        db.session.query(Item)
+        .filter(Item.status == "IN_STOCK")
+        .order_by(Item.arrival_date.desc())
+        .limit(500)
+        .all()
+    )
+
+    # We'll pass items to the template for a dropdown
+    return render_template("sales/new.html", active_nav="sales", form=form, items=items)
 
 @routes_bp.post("/sales/new")
 @login_required
