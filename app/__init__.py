@@ -15,8 +15,12 @@ def create_app():
 
     from .auth import auth_bp
     from .api import api_bp
+    from .routes import routes_bp
+    
     app.register_blueprint(auth_bp)
-    app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(routes_bp)                 # UI routes
+    app.register_blueprint(api_bp, url_prefix="/api") # optional JSON
+
 
     @app.get("/health")
     def health():
