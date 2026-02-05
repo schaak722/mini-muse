@@ -5,12 +5,12 @@
     <h1 class="h1">Item</h1>
     <div class="sub">PK: {{ item.pk_id }}</div>
   </div>
-  <div style="display:flex; gap:10px;">
-    <a class="btn" href="{{ url_for('routes.items_edit', pk_id=item.pk_id) }}">Edit</a>
-    {% if item.status == 'IN_STOCK' %}
-      <a class="btn primary" href="{{ url_for('routes.sales_new', item_pk_id=item.pk_id) }}">Record sale</a>
-    {% endif %}
-  </div>
+ <div style="display:flex; gap:10px;">
+  <a class="btn" href="{{ url_for('routes.items_list') }}">Back</a>
+  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=item.pk_id) }}">Edit</a>
+  {% if item.status == 'IN_STOCK' %}
+    <a class="btn primary" href="{{ url_for('routes.sales_new', item_pk_id=item.pk_id) }}">Record sale</a>
+  {% endif %}
 </div>
 
 <div class="card">
