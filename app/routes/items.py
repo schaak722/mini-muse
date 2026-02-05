@@ -4,6 +4,8 @@ from . import routes_bp
 from ..extensions import db
 from ..models import Item, AuditLog
 from ..forms import ItemForm
+from flask import request
+from sqlalchemy import or_
 
 def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, reason=None):
     db.session.add(AuditLog(
@@ -20,9 +22,32 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 @routes_bp.get("/items")
 @login_required
 def items_list():
-    items = db.session.query(Item).order_by(Item.arrival_date.desc()).limit(500).all()
-    return render_template("items/list.html", active_nav="items", items=items)
+    status = (request.args.get("status") or "").strip()
+    q = (request.args.get("q") or "").strip()
 
+    query = db.session.query(Item)
+
+    if status in ("IN_STOCK", "SOLD"):
+        query = query.filter(Item.status == status)
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            Item.sku.ilike(like),
+            Item.user_item_id.ilike(like),
+            Item.order_number.ilike(like),
+            Item.item_description.ilike(like),
+        ))
+
+    items = query.order_by(Item.arrival_date.desc()).limit(500).all()
+
+    return render_template(
+        "items/list.html",
+        active_nav="items",
+        items=items,
+        status=status,
+        q=q,
+    )
 @routes_bp.get("/items/new")
 @login_required
 def items_new():
