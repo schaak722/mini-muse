@@ -26,24 +26,44 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 @routes_bp.get("/items")
 @login_required
 def items_list():
-    status = (request.args.get("status") or "").strip()
+    # Per spec: Inventory is IN_STOCK items by default
+    status = (request.args.get("status") or "IN_STOCK").strip()
     q = (request.args.get("q") or "").strip()
+
+    order_from = (request.args.get("order_from") or "").strip()
+    order_to = (request.args.get("order_to") or "").strip()
+    arrival_from = (request.args.get("arrival_from") or "").strip()
+    arrival_to = (request.args.get("arrival_to") or "").strip()
 
     query = db.session.query(Item)
 
     if status in ("IN_STOCK", "SOLD"):
         query = query.filter(Item.status == status)
 
+    # Search: SKU, Order #, Supplier (Company), Brand, Description
     if q:
         like = f"%{q}%"
         query = query.filter(
             or_(
                 Item.sku.ilike(like),
-                Item.user_item_id.ilike(like),
                 Item.order_number.ilike(like),
+                Item.company_name.ilike(like),
+                Item.brand.ilike(like),
                 Item.item_description.ilike(like),
             )
         )
+
+    # Filters: Order Date range
+    if order_from:
+        query = query.filter(Item.order_date >= order_from)
+    if order_to:
+        query = query.filter(Item.order_date <= order_to)
+
+    # Filters: Arrival Date range
+    if arrival_from:
+        query = query.filter(Item.arrival_date >= arrival_from)
+    if arrival_to:
+        query = query.filter(Item.arrival_date <= arrival_to)
 
     items = query.order_by(Item.arrival_date.desc()).limit(500).all()
 
@@ -53,6 +73,10 @@ def items_list():
         items=items,
         status=status,
         q=q,
+        order_from=order_from,
+        order_to=order_to,
+        arrival_from=arrival_from,
+        arrival_to=arrival_to,
     )
 
 
@@ -87,10 +111,7 @@ def items_create():
         created_by=current_user.pk_id,
     )
     db.session.add(i)
-
-    # Ensure i.pk_id exists for audit log
-    db.session.flush()
-
+    db.session.flush()  # ensure pk exists for audit
     audit("ITEM", i.pk_id, "CREATE")
     db.session.commit()
 
@@ -145,13 +166,3 @@ def items_update(pk_id):
     db.session.commit()
     flash("Item updated.", "ok")
     return redirect(url_for("routes.items_list"))
-
-
-@routes_bp.get("/items/<pk_id>")
-@login_required
-def items_view(pk_id):
-    i = db.session.get(Item, pk_id)
-    if not i:
-        flash("Item not found.", "error")
-        return redirect(url_for("routes.items_list"))
-    return render_template("items/view.html", active_nav="items", item=i)
