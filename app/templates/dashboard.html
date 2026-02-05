@@ -1,1 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Dashboard</h1>
+    <div class="sub">At-a-glance inventory and sales performance.</div>
+  </div>
+</div>
 
+<div class="grid cols-3">
+  <div class="card kpi">
+    <div class="label">In stock</div>
+    <div class="value">{{ in_stock }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Sold</div>
+    <div class="value">{{ sold }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Total profit</div>
+    <div class="value">€{{ total_profit }}</div>
+  </div>
+</div>
+{% endblock %}
