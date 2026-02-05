@@ -3,34 +3,60 @@
 <div class="topbar">
   <div>
     <h1 class="h1">Inventory</h1>
-    <div class="sub">Items imported or created manually. Use filters to find items quickly.</div>
-  </div>
-  <div>
-    <a class="btn primary" href="{{ url_for('routes.items_new') }}">Add item</a>
+    <div class="sub">Arrived stock (IN_STOCK items). Mark items as sold from this page.</div>
   </div>
 </div>
 
-<!-- Filters (Shopify-inspired) -->
 <div class="card" style="margin-bottom:14px;">
   <div class="card-body">
     <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
       <div class="field" style="min-width:200px;">
         <label>Status</label>
         <select name="status">
-          <option value="" {% if not status %}selected{% endif %}>All</option>
           <option value="IN_STOCK" {% if status=='IN_STOCK' %}selected{% endif %}>IN_STOCK</option>
           <option value="SOLD" {% if status=='SOLD' %}selected{% endif %}>SOLD</option>
+          <option value="" {% if not status %}selected{% endif %}>All</option>
         </select>
       </div>
 
-      <div class="field" style="min-width:320px; flex:1;">
-        <label>Search (SKU, Item ID, Order #, Description)</label>
-        <input name="q" value="{{ q or '' }}" placeholder="e.g. SR-PRZE or MM-0001 or PO-123">
+      <div class="field" style="min-width:340px; flex:1;">
+        <label>Search (SKU, Order #, Supplier, Brand, Description)</label>
+        <input name="q" value="{{ q or '' }}" placeholder="e.g. SR-PRZE or PO-123 or MayLily">
       </div>
 
-      <div style="display:flex; gap:10px;">
+      <div class="field">
+        <label>Order date from</label>
+        <input type="date" name="order_from" value="{{ order_from or '' }}">
+      </div>
+      <div class="field">
+        <label>Order date to</label>
+        <input type="date" name="order_to" value="{{ order_to or '' }}">
+      </div>
+
+      <div class="field">
+        <label>Arrival from</label>
+        <input type="date" name="arrival_from" value="{{ arrival_from or '' }}">
+      </div>
+      <div class="field">
+        <label>Arrival to</label>
+        <input type="date" name="arrival_to" value="{{ arrival_to or '' }}">
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
         <button class="btn primary" type="submit">Apply</button>
-        <a class="btn" href="{{ url_for('routes.items_list') }}">Clear</a>
+        <a class="btn" href="{{ url_for('routes.items_list') }}">Reset</a>
+
+        <div style="position:relative;">
+          <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
+          <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
+            <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
+              <!-- placeholders: we wire these up in Phase 2 (CSV import/export) -->
+              <a href="#" onclick="alert('Import Order (CSV) coming next phase'); return false;">Import Order (CSV)</a>
+              <a href="#" onclick="alert('Export list coming next phase'); return false;">Export list</a>
+              <a href="{{ url_for('routes.items_new') }}">Manual input item</a>
+            </div>
+          </div>
+        </div>
       </div>
     </form>
   </div>
@@ -38,18 +64,20 @@
 
 <div class="card">
   <div class="card-header">
-    <div class="card-title">Latest items</div>
+    <div class="card-title">Items</div>
   </div>
 
   <div class="card-body table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Status</th>
-          <th>User Item ID</th>
+          <th style="width:38px;"></th>
           <th>SKU</th>
           <th>Description</th>
+          <th>Supplier</th>
+          <th>Brand</th>
           <th>Order #</th>
+          <th>Order date</th>
           <th>Arrival</th>
           <th>Net cost</th>
           <th>Freight</th>
@@ -60,23 +88,43 @@
         {% for i in items %}
         <tr>
           <td>
-            {% if i.status == 'IN_STOCK' %}
-              <span class="badge green">IN_STOCK</span>
-            {% else %}
-              <span class="badge gray">SOLD</span>
-            {% endif %}
+            <button class="btn" type="button" style="padding:6px 8px;" onclick="toggleRow('{{ i.pk_id }}')">▸</button>
           </td>
-          <td>{{ i.user_item_id }}</td>
           <td>{{ i.sku }}</td>
           <td>{{ i.item_description }}</td>
+          <td>{{ i.company_name }}</td>
+          <td>{{ i.brand }}</td>
           <td>{{ i.order_number }}</td>
+          <td>{{ i.order_date }}</td>
           <td>{{ i.arrival_date }}</td>
           <td>€{{ i.net_unit_cost }}</td>
           <td>€{{ i.freight_net }}</td>
           <td style="text-align:right;">
-            <div style="display:inline-flex; gap:8px;">
-              <a class="btn" href="{{ url_for('routes.items_view', pk_id=i.pk_id) }}">View</a>
-              <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit</a>
+            {% if i.status == 'IN_STOCK' %}
+              <button class="btn primary" type="button" onclick="alert('Sold modal coming next step');">Sold</button>
+            {% else %}
+              <span class="badge gray">SOLD</span>
+            {% endif %}
+          </td>
+        </tr>
+
+        <!-- Expanded row -->
+        <tr id="row-{{ i.pk_id }}" style="display:none;">
+          <td colspan="11" style="background:#fafbfb;">
+            <div class="grid cols-2" style="padding:12px;">
+              <div><b>Internal Item ID:</b> {{ i.user_item_id }}</div>
+              <div><b>VAT rate:</b> {{ i.vat_rate }}</div>
+              <div><b>Status:</b>
+                {% if i.status == 'IN_STOCK' %}
+                  <span class="badge green">IN_STOCK</span>
+                {% else %}
+                  <span class="badge gray">SOLD</span>
+                {% endif %}
+              </div>
+              <div><b>DB PK:</b> {{ i.pk_id }}</div>
+              <div style="grid-column:1 / -1;">
+                <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit item</a>
+              </div>
             </div>
           </td>
         </tr>
@@ -84,8 +132,8 @@
 
         {% if not items %}
         <tr>
-          <td colspan="9" style="color: var(--muted);">
-            No items found. Try changing filters or click “Add item”.
+          <td colspan="11" style="color: var(--muted);">
+            No items found. Try changing filters or import an order CSV.
           </td>
         </tr>
         {% endif %}
@@ -93,4 +141,28 @@
     </table>
   </div>
 </div>
+
+<script>
+function toggleRow(pk){
+  const tr = document.getElementById("row-" + pk);
+  if (!tr) return;
+  tr.style.display = (tr.style.display === "none" || !tr.style.display) ? "table-row" : "none";
+}
+
+function toggleMoreActions(){
+  const m = document.getElementById("moreActionsMenu");
+  if (!m) return;
+  m.style.display = (m.style.display === "none" || !m.style.display) ? "block" : "none";
+}
+
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("moreActionsMenu");
+  if (!menu) return;
+  const btn = e.target.closest("button");
+  if (btn && btn.textContent.includes("More actions")) return;
+  if (!e.target.closest("#moreActionsMenu")) {
+    menu.style.display = "none";
+  }
+});
+</script>
 {% endblock %}
