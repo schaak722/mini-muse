@@ -1,1 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Imports</h1>
+    <div class="sub">Upload batches and view processing results (upload step coming next).</div>
+  </div>
+  <div>
+    <a class="btn primary" href="{{ url_for('routes.imports_new') }}">New import</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Recent batches</div>
+  </div>
+  <div class="card-body table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Uploaded</th>
+          <th>Filename</th>
+          <th>Total</th>
+          <th>Success</th>
+          <th>Failed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in batches %}
+        <tr>
+          <td>{{ b.uploaded_at }}</td>
+          <td>{{ b.filename }}</td>
+          <td>{{ b.total_rows }}</td>
+          <td>{{ b.success_rows }}</td>
+          <td>{{ b.failed_rows }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
 
