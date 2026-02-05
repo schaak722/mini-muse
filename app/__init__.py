@@ -10,7 +10,9 @@ def create_app():
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
-    # Blueprints
+    from .cli import register_cli
+    register_cli(app)
+
     from .auth import auth_bp
     from .api import api_bp
     app.register_blueprint(auth_bp)
@@ -21,4 +23,3 @@ def create_app():
         return jsonify({"ok": True})
 
     return app
-
