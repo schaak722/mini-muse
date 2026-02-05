@@ -26,8 +26,6 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 @routes_bp.get("/items")
 @login_required
 def items_list():
-    # Per spec: Inventory is IN_STOCK items by default
-    status = (request.args.get("status") or "IN_STOCK").strip()
     q = (request.args.get("q") or "").strip()
 
     order_from = (request.args.get("order_from") or "").strip()
@@ -35,10 +33,8 @@ def items_list():
     arrival_from = (request.args.get("arrival_from") or "").strip()
     arrival_to = (request.args.get("arrival_to") or "").strip()
 
-    query = db.session.query(Item)
-
-    if status in ("IN_STOCK", "SOLD"):
-        query = query.filter(Item.status == status)
+    # Inventory page = IN_STOCK only (per spec)
+    query = db.session.query(Item).filter(Item.status == "IN_STOCK")
 
     # Search: SKU, Order #, Supplier (Company), Brand, Description
     if q:
@@ -53,13 +49,13 @@ def items_list():
             )
         )
 
-    # Filters: Order Date range
+    # Order Date range
     if order_from:
         query = query.filter(Item.order_date >= order_from)
     if order_to:
         query = query.filter(Item.order_date <= order_to)
 
-    # Filters: Arrival Date range
+    # Arrival Date range
     if arrival_from:
         query = query.filter(Item.arrival_date >= arrival_from)
     if arrival_to:
@@ -71,14 +67,12 @@ def items_list():
         "items/list.html",
         active_nav="items",
         items=items,
-        status=status,
         q=q,
         order_from=order_from,
         order_to=order_to,
         arrival_from=arrival_from,
         arrival_to=arrival_to,
     )
-
 
 @routes_bp.get("/items/new")
 @login_required
