@@ -53,6 +53,7 @@ def items_create():
         created_by=current_user.pk_id,
     )
     db.session.add(i)
+    db.session.flush()
     audit("ITEM", i.pk_id, "CREATE")
     db.session.commit()
     flash("Item created.", "ok")
