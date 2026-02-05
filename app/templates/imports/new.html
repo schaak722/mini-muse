@@ -1,1 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">New import</h1>
+    <div class="sub">Upload CSVs for Purchases / Sales (we’ll implement the uploader next).</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="form">
+      <div class="flash">Upload is not implemented yet — this creates a batch record only for now.</div>
+      <button class="btn primary" type="submit">Create batch (stub)</button>
+      <a class="btn" href="{{ url_for('routes.imports_list') }}">Back</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
 
