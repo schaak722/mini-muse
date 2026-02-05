@@ -1,1 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Record sale</h1>
+    <div class="sub">Enter the item PK ID (from Inventory edit page) and sale details.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="form">
+      {{ form.hidden_tag() }}
+
+      <div class="grid cols-2">
+        <div class="field"><label>Item PK ID</label>{{ form.item_pk_id(placeholder="Paste the item PK here") }}</div>
+        <div class="field"><label>Sale Date</label>{{ form.sale_date() }}</div>
+
+        <div class="field"><label>Selling Price (Gross)</label>{{ form.item_selling_price_gross() }}</div>
+        <div class="field"><label>Delivery Fee Charged (Gross)</label>{{ form.delivery_fee_charged_gross() }}</div>
+
+        <div class="field"><label>Discount Type</label>{{ form.discount_type() }}</div>
+        <div class="field"><label>Discount Value</label>{{ form.discount_value() }}</div>
+
+        <div class="field"><label>Discount Amount (Gross)</label>{{ form.discount_amount_gross() }}</div>
+        <div class="field"><label>Packaging (Net)</label>{{ form.packaging_net() }}</div>
+
+        <div class="field"><label>Delivery Cost (Net)</label>{{ form.delivery_cost_net() }}</div>
+        <div class="field"><label>Other Cost (Net)</label>{{ form.other_cost_net() }}</div>
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        {{ form.notes() }}
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top: 10px;">
+        <button class="btn primary" type="submit">Record sale</button>
+        <a class="btn" href="{{ url_for('routes.sales_list') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
 
