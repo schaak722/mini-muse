@@ -1,1 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Inventory</h1>
+    <div class="sub">Items imported or created manually. Click an item to edit.</div>
+  </div>
+  <div>
+    <a class="btn primary" href="{{ url_for('routes.items_new') }}">Add item</a>
+  </div>
+</div>
 
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Latest items</div>
+  </div>
+  <div class="card-body table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>User Item ID</th>
+          <th>SKU</th>
+          <th>Description</th>
+          <th>Order #</th>
+          <th>Arrival</th>
+          <th>Net cost</th>
+          <th>Freight</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for i in items %}
+        <tr>
+          <td>
+            {% if i.status == 'IN_STOCK' %}
+              <span class="badge green">IN_STOCK</span>
+            {% else %}
+              <span class="badge gray">SOLD</span>
+            {% endif %}
+          </td>
+          <td>{{ i.user_item_id }}</td>
+          <td>{{ i.sku }}</td>
+          <td>{{ i.item_description }}</td>
+          <td>{{ i.order_number }}</td>
+          <td>{{ i.arrival_date }}</td>
+          <td>€{{ i.net_unit_cost }}</td>
+          <td>€{{ i.freight_net }}</td>
+          <td><a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
