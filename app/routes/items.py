@@ -118,3 +118,12 @@ def items_update(pk_id):
     db.session.commit()
     flash("Item updated.", "ok")
     return redirect(url_for("routes.items_list"))
+
+@routes_bp.get("/items/<pk_id>")
+@login_required
+def items_view(pk_id):
+    i = db.session.get(Item, pk_id)
+    if not i:
+        flash("Item not found.", "error")
+        return redirect(url_for("routes.items_list"))
+    return render_template("items/view.html", active_nav="items", item=i)
