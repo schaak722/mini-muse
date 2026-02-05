@@ -1,8 +1,5 @@
 from __future__ import with_statement
 
-import os
-from logging.config import fileConfig
-
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
@@ -11,15 +8,18 @@ from app.extensions import db
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# IMPORTANT:
+# Don't call fileConfig() here. In some hosted environments the ini path
+# resolves incorrectly (e.g. migrations/alembic.ini) and crashes.
+# Logging config is not required for migrations to run.
 
 target_metadata = db.metadata
 
+
 def get_url():
-    # Flask config handles postgresql:// -> postgresql+psycopg:// conversion
     app = create_app()
     return app.config["SQLALCHEMY_DATABASE_URI"]
+
 
 def run_migrations_offline():
     url = get_url()
@@ -33,6 +33,7 @@ def run_migrations_offline():
 
     with context.begin_transaction():
         context.run_migrations()
+
 
 def run_migrations_online():
     configuration = config.get_section(config.config_ini_section) or {}
@@ -55,8 +56,8 @@ def run_migrations_online():
         with context.begin_transaction():
             context.run_migrations()
 
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
