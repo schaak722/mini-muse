@@ -3,13 +3,14 @@
 <div class="topbar">
   <div>
     <h1 class="h1">Inventory</h1>
-    <div class="sub">Items imported or created manually. Click an item to edit.</div>
+    <div class="sub">Items imported or created manually. Use filters to find items quickly.</div>
   </div>
   <div>
     <a class="btn primary" href="{{ url_for('routes.items_new') }}">Add item</a>
   </div>
 </div>
 
+<!-- Filters (Shopify-inspired) -->
 <div class="card" style="margin-bottom:14px;">
   <div class="card-body">
     <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -24,7 +25,7 @@
 
       <div class="field" style="min-width:320px; flex:1;">
         <label>Search (SKU, Item ID, Order #, Description)</label>
-        <input name="q" value="{{ q }}" placeholder="e.g. SR-PRZE or MM-0001 or PO-123">
+        <input name="q" value="{{ q or '' }}" placeholder="e.g. SR-PRZE or MM-0001 or PO-123">
       </div>
 
       <div style="display:flex; gap:10px;">
@@ -39,6 +40,7 @@
   <div class="card-header">
     <div class="card-title">Latest items</div>
   </div>
+
   <div class="card-body table-wrap">
     <table>
       <thead>
@@ -51,7 +53,7 @@
           <th>Arrival</th>
           <th>Net cost</th>
           <th>Freight</th>
-          <th></th>
+          <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -71,9 +73,22 @@
           <td>{{ i.arrival_date }}</td>
           <td>€{{ i.net_unit_cost }}</td>
           <td>€{{ i.freight_net }}</td>
-          <td><a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit</a></td>
+          <td style="text-align:right;">
+            <div style="display:inline-flex; gap:8px;">
+              <a class="btn" href="{{ url_for('routes.items_view', pk_id=i.pk_id) }}">View</a>
+              <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit</a>
+            </div>
+          </td>
         </tr>
         {% endfor %}
+
+        {% if not items %}
+        <tr>
+          <td colspan="9" style="color: var(--muted);">
+            No items found. Try changing filters or click “Add item”.
+          </td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
