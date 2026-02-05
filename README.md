@@ -1,19 +1,6 @@
-# Mini Muse Costings (Phase 0)
+This folder is created/managed by Flask-Migrate (Alembic).
 
-## What you have
-- Flask app scaffold
-- Login/logout
-- Roles: admin/user/viewer
-- Admin user management
-- Shopify-like admin layout
-
-## Koyeb env vars (required)
-- DATABASE_URL (Neon connection string using postgresql+psycopg)
-- SECRET_KEY
-- ADMIN_EMAIL
-- ADMIN_PASSWORD
-- ADMIN_NAME (optional)
-
-## Start command (Koyeb)
-gunicorn wsgi:app --bind 0.0.0.0:$PORT
-
+On first init (local or via a one-off run):
+- flask db init
+- flask db migrate -m "init"
+- flask db upgrade
