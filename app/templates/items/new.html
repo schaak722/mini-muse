@@ -1,1 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Add item</h1>
+    <div class="sub">Create a single inventory item.</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="form">
+      {{ form.hidden_tag() }}
+
+      <div class="grid cols-2">
+        <div class="field"><label>User Item ID</label>{{ form.user_item_id() }}</div>
+        <div class="field"><label>SKU</label>{{ form.sku() }}</div>
+
+        <div class="field"><label>Order Number</label>{{ form.order_number() }}</div>
+        <div class="field"><label>Company Name</label>{{ form.company_name() }}</div>
+
+        <div class="field"><label>Order Date</label>{{ form.order_date() }}</div>
+        <div class="field"><label>Arrival Date</label>{{ form.arrival_date() }}</div>
+
+        <div class="field"><label>Brand</label>{{ form.brand() }}</div>
+        <div class="field"><label>Item Description</label>{{ form.item_description() }}</div>
+
+        <div class="field"><label>Net Unit Cost</label>{{ form.net_unit_cost() }}</div>
+        <div class="field"><label>Freight (Net)</label>{{ form.freight_net() }}</div>
+
+        <div class="field"><label>VAT Rate</label>{{ form.vat_rate() }}</div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top: 10px;">
+        <button class="btn primary" type="submit">Create item</button>
+        <a class="btn" href="{{ url_for('routes.items_list') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
 
