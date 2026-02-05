@@ -41,10 +41,12 @@ def sales_list():
 def sales_new():
     form = SaleForm()
 
+    # Optional prefill from item view page
     prefill = (request.args.get("item_pk_id") or "").strip()
     if prefill:
         form.item_pk_id.data = prefill
 
+    # Dropdown list of IN_STOCK items
     items = (
         db.session.query(Item)
         .filter(Item.status == "IN_STOCK")
