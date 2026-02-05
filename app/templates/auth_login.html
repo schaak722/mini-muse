@@ -1,1 +1,28 @@
+{% extends "base.html" %}
+{% block auth_content %}
+<div class="auth-wrap">
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Sign in</div>
+        <div class="sub">Mini Muse Ops</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <form method="post" class="form">
+        {{ form.hidden_tag() }}
+        <div class="field">
+          <label>Email</label>
+          {{ form.email(placeholder="you@company.com") }}
+        </div>
+        <div class="field">
+          <label>Password</label>
+          {{ form.password(placeholder="••••••••") }}
+        </div>
+        <button class="btn primary" type="submit">Sign in</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
 
