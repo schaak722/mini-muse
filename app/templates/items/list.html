@@ -10,14 +10,6 @@
 <div class="card" style="margin-bottom:14px;">
   <div class="card-body">
     <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-      <div class="field" style="min-width:200px;">
-        <label>Status</label>
-        <select name="status">
-          <option value="IN_STOCK" {% if status=='IN_STOCK' %}selected{% endif %}>IN_STOCK</option>
-          <option value="SOLD" {% if status=='SOLD' %}selected{% endif %}>SOLD</option>
-          <option value="" {% if not status %}selected{% endif %}>All</option>
-        </select>
-      </div>
 
       <div class="field" style="min-width:340px; flex:1;">
         <label>Search (SKU, Order #, Supplier, Brand, Description)</label>
