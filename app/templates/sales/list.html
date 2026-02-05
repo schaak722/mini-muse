@@ -1,1 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Sales</h1>
+    <div class="sub">Recorded sales and profitability snapshots.</div>
+  </div>
+  <div>
+    <a class="btn primary" href="{{ url_for('routes.sales_new') }}">Record sale</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Latest sales</div>
+  </div>
+  <div class="card-body table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Sale date</th>
+          <th>Item PK</th>
+          <th>Gross</th>
+          <th>Net rev</th>
+          <th>VAT</th>
+          <th>Profit</th>
+          <th>Reverse</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sales %}
+        <tr>
+          <td>{{ s.sale_date }}</td>
+          <td>{{ s.item_pk_id }}</td>
+          <td>€{{ s.item_selling_price_gross }}</td>
+          <td>€{{ s.item_net_revenue }}</td>
+          <td>€{{ s.item_vat_amount }}</td>
+          <td>€{{ s.item_profit }}</td>
+          <td>
+            <form method="post" action="{{ url_for('routes.sales_reverse', sale_pk_id=s.pk_id) }}" style="display:flex; gap:8px; align-items:center;">
+              {{ reverse_form.hidden_tag() }}
+              {{ reverse_form.reason(placeholder="Reason…", style="min-width:220px;") }}
+              <button class="btn danger" type="submit">Reverse</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
 
