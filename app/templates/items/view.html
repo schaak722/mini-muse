@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="h1">Item</h1>
+    <div class="sub">PK: {{ item.pk_id }}</div>
+  </div>
+  <div style="display:flex; gap:10px;">
+    <a class="btn" href="{{ url_for('routes.items_edit', pk_id=item.pk_id) }}">Edit</a>
+    {% if item.status == 'IN_STOCK' %}
+      <a class="btn primary" href="{{ url_for('routes.sales_new', item_pk_id=item.pk_id) }}">Record sale</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <div style="margin-bottom:10px;">
+      {% if item.status == 'IN_STOCK' %}
+        <span class="badge green">IN_STOCK</span>
+      {% else %}
+        <span class="badge gray">SOLD</span>
+      {% endif %}
+    </div>
+
+    <div class="grid cols-2">
+      <div><b>User Item ID:</b> {{ item.user_item_id }}</div>
+      <div><b>SKU:</b> {{ item.sku }}</div>
+
+      <div><b>Order #:</b> {{ item.order_number }}</div>
+      <div><b>Company:</b> {{ item.company_name }}</div>
+
+      <div><b>Order date:</b> {{ item.order_date }}</div>
+      <div><b>Arrival date:</b> {{ item.arrival_date }}</div>
+
+      <div><b>Brand:</b> {{ item.brand }}</div>
+      <div><b>Description:</b> {{ item.item_description }}</div>
+
+      <div><b>Net unit cost:</b> €{{ item.net_unit_cost }}</div>
+      <div><b>Freight (net):</b> €{{ item.freight_net }}</div>
+
+      <div><b>VAT rate:</b> {{ item.vat_rate }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
