@@ -6,6 +6,7 @@ from . import routes_bp
 from ..extensions import db
 from ..models import Item, Sale, AuditLog
 from ..forms import SaleForm, ReverseSaleForm
+from flask import request
 
 def q2(x: Decimal) -> Decimal:
     return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -40,7 +41,10 @@ def sales_list():
 def sales_new():
     form = SaleForm()
 
-    # Build dropdown choices for IN_STOCK items
+    prefill = (request.args.get("item_pk_id") or "").strip()
+    if prefill:
+        form.item_pk_id.data = prefill
+
     items = (
         db.session.query(Item)
         .filter(Item.status == "IN_STOCK")
@@ -49,7 +53,6 @@ def sales_new():
         .all()
     )
 
-    # We'll pass items to the template for a dropdown
     return render_template("sales/new.html", active_nav="sales", form=form, items=items)
 
 @routes_bp.post("/sales/new")
