@@ -1,3 +1,4 @@
+from flask import render_template
 from flask_login import login_required
 from sqlalchemy import func
 from . import routes_bp
@@ -11,13 +12,10 @@ def dashboard():
     sold = db.session.query(func.count(Item.pk_id)).filter(Item.status == "SOLD").scalar() or 0
     total_profit = db.session.query(func.coalesce(func.sum(Sale.item_profit), 0)).scalar()
 
-    return (
+    return render_template(
         "dashboard.html",
-        {
-            "active_nav": "dashboard",
-            "in_stock": int(in_stock),
-            "sold": int(sold),
-            "total_profit": str(total_profit),
-        },
+        active_nav="dashboard",
+        in_stock=int(in_stock),
+        sold=int(sold),
+        total_profit=str(total_profit),
     )
-
