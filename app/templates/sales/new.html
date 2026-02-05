@@ -13,7 +13,35 @@
       {{ form.hidden_tag() }}
 
       <div class="grid cols-2">
-        <div class="field"><label>Item PK ID</label>{{ form.item_pk_id(placeholder="Paste the item PK here") }}</div>
+        <div class="field">
+  <label>Select IN_STOCK item</label>
+  <select id="item_picker" class="field" style="width:100%; padding:10px 10px; border-radius:10px; border:1px solid var(--border);">
+    <option value="">-- Choose an item --</option>
+    {% for it in items %}
+      <option value="{{ it.pk_id }}">
+        {{ it.user_item_id }} | {{ it.sku }} | {{ it.item_description[:50] }}
+      </option>
+    {% endfor %}
+  </select>
+  <div class="sub" style="margin-top:6px;">This will fill the Item PK ID automatically.</div>
+</div>
+
+<div class="field">
+  <label>Item PK ID</label>
+  {{ form.item_pk_id(placeholder="Auto-filled when you select an item") }}
+</div>
+
+<script>
+  (function(){
+    const picker = document.getElementById("item_picker");
+    const input = document.querySelector("input[name='item_pk_id']");
+    if (!picker || !input) return;
+    picker.addEventListener("change", () => {
+      input.value = picker.value || "";
+    });
+  })();
+</script>
+
         <div class="field"><label>Sale Date</label>{{ form.sale_date() }}</div>
 
         <div class="field"><label>Selling Price (Gross)</label>{{ form.item_selling_price_gross() }}</div>
