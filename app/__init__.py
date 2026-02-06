@@ -25,17 +25,14 @@ def create_app():
     def health():
         return jsonify({"ok": True})
 
-    return app
-
-@app.route("/run-migration-now")
-def run_migration_now():
-    try:
-        from flask_migrate import upgrade
-        from .extensions import db
-        
-        with app.app_context():
+    # ADD THIS TEMPORARY ROUTE HERE (BEFORE return app)
+    @app.route("/run-migration-now")
+    def run_migration_now():
+        try:
+            from flask_migrate import upgrade
             upgrade()
-        
-        return "Migration completed successfully! Remove this route now."
-    except Exception as e:
-        return f"Migration failed: {str(e)}"
+            return "✅ Migration completed! Delete this route now for security."
+        except Exception as e:
+            return f"❌ Migration failed: {str(e)}"
+
+    return app
