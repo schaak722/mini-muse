@@ -1,142 +1,200 @@
-from decimal import Decimal, ROUND_HALF_UP
-from flask import render_template, redirect, url_for, flash
+from decimal import Decimal
+from datetime import date
+from flask import render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import or_
+
 from . import routes_bp
 from ..extensions import db
 from ..models import Item, Sale, AuditLog
-from ..forms import SaleForm, ReverseSaleForm
-from flask import request
 
-def q2(x: Decimal) -> Decimal:
-    return x.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-
-def compute_snapshots(gross_price: Decimal, vat_rate: Decimal, total_cost_net: Decimal):
-    net_rev = q2(gross_price / (Decimal("1.0") + vat_rate))
-    vat_amt = q2(gross_price - net_rev)
-    profit = q2(net_rev - total_cost_net)
-    return net_rev, vat_amt, profit
 
 def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, reason=None):
-    db.session.add(AuditLog(
-        entity_type=entity_type,
-        entity_pk_id=entity_pk_id,
-        action=action,
-        field_name=field,
-        old_value=None if old is None else str(old),
-        new_value=None if new is None else str(new),
-        reason=reason,
-        actor_user_id=getattr(current_user, "pk_id", None),
-    ))
+    db.session.add(
+        AuditLog(
+            entity_type=entity_type,
+            entity_pk_id=entity_pk_id,
+            action=action,
+            field_name=field,
+            old_value=None if old is None else str(old),
+            new_value=None if new is None else str(new),
+            reason=reason,
+            actor_user_id=getattr(current_user, "pk_id", None),
+        )
+    )
+
+
+def calculate_sale_metrics(selling_price_gross, vat_rate, net_unit_cost, freight_net, 
+                          packaging_net, delivery_cost_net, other_cost_net):
+    """Calculate net revenue, VAT amount, and profit for a sale"""
+    vat_multiplier = Decimal("1") + vat_rate
+    
+    # Net revenue = gross selling price / (1 + VAT rate)
+    net_revenue = selling_price_gross / vat_multiplier
+    
+    # VAT amount = gross - net
+    vat_amount = selling_price_gross - net_revenue
+    
+    # Profit = net revenue - all costs
+    total_costs = net_unit_cost + freight_net + packaging_net + delivery_cost_net + other_cost_net
+    profit = net_revenue - total_costs
+    
+    return {
+        'net_revenue': net_revenue.quantize(Decimal('0.01')),
+        'vat_amount': vat_amount.quantize(Decimal('0.01')),
+        'profit': profit.quantize(Decimal('0.01'))
+    }
+
 
 @routes_bp.get("/sales")
 @login_required
 def sales_list():
-    sales = db.session.query(Sale).order_by(Sale.sale_date.desc()).limit(500).all()
-    reverse_form = ReverseSaleForm()
-    return render_template("sales/list.html", active_nav="sales", sales=sales, reverse_form=reverse_form)
-
-@routes_bp.get("/sales/new")
-@login_required
-def sales_new():
-    form = SaleForm()
-
-    # Optional prefill from item view page
-    prefill = (request.args.get("item_pk_id") or "").strip()
-    if prefill:
-        form.item_pk_id.data = prefill
-
-    # Dropdown list of IN_STOCK items
-    items = (
-        db.session.query(Item)
-        .filter(Item.status == "IN_STOCK")
-        .order_by(Item.arrival_date.desc())
-        .limit(500)
-        .all()
+    """List all sold items with their sale details"""
+    q = (request.args.get("q") or "").strip()
+    
+    order_from = (request.args.get("order_from") or "").strip()
+    order_to = (request.args.get("order_to") or "").strip()
+    sale_from = (request.args.get("sale_from") or "").strip()
+    sale_to = (request.args.get("sale_to") or "").strip()
+    
+    # Join items with sales
+    query = db.session.query(Item).join(Sale).filter(Item.status == "SOLD")
+    
+    # Search
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            or_(
+                Item.sku.ilike(like),
+                Item.order_number.ilike(like),
+                Item.company_name.ilike(like),
+                Item.brand.ilike(like),
+                Item.item_description.ilike(like),
+            )
+        )
+    
+    # Order Date range
+    if order_from:
+        query = query.filter(Item.order_date >= order_from)
+    if order_to:
+        query = query.filter(Item.order_date <= order_to)
+    
+    # Sale Date range
+    if sale_from:
+        query = query.filter(Sale.sale_date >= sale_from)
+    if sale_to:
+        query = query.filter(Sale.sale_date <= sale_to)
+    
+    items = query.order_by(Sale.sale_date.desc()).limit(500).all()
+    
+    return render_template(
+        "sales/list.html",
+        active_nav="sales",
+        items=items,
+        q=q,
+        order_from=order_from,
+        order_to=order_to,
+        sale_from=sale_from,
+        sale_to=sale_to,
     )
 
-    return render_template("sales/new.html", active_nav="sales", form=form, items=items)
 
-@routes_bp.post("/sales/new")
+@routes_bp.post("/items/<pk_id>/sell")
 @login_required
-def sales_create():
-    form = SaleForm()
-    if not form.validate_on_submit():
-        flash("Please fix the highlighted fields.", "error")
-        return render_template("sales/new.html", active_nav="sales", form=form), 400
-
-    item = db.session.get(Item, form.item_pk_id.data.strip())
+def items_sell(pk_id):
+    """Create a sale for an item (mark as sold)"""
+    item = db.session.get(Item, pk_id)
     if not item:
-        flash("Item not found. Check the Item PK ID.", "error")
-        return render_template("sales/new.html", active_nav="sales", form=form), 400
-    if item.status != "IN_STOCK":
-        flash("That item is not IN_STOCK.", "error")
-        return render_template("sales/new.html", active_nav="sales", form=form), 400
-
-    gross = Decimal(str(form.item_selling_price_gross.data))
-    vat_rate = Decimal(str(item.vat_rate))
-
-    packaging = Decimal(str(form.packaging_net.data or 0))
-    delivery_cost = Decimal(str(form.delivery_cost_net.data or 0))
-    other = Decimal(str(form.other_cost_net.data or 0))
-
-    total_cost = Decimal(str(item.net_unit_cost)) + Decimal(str(item.freight_net)) + packaging + delivery_cost + other
-    net_rev, vat_amt, profit = compute_snapshots(gross, vat_rate, total_cost)
-
+        return jsonify({"error": "Item not found"}), 404
+    
+    if item.status == "SOLD":
+        return jsonify({"error": "Item is already sold"}), 400
+    
+    # Validate required fields exist on item
+    required_fields = [
+        'user_item_id', 'order_number', 'order_date', 'arrival_date',
+        'company_name', 'brand', 'item_description', 'sku',
+        'net_unit_cost', 'freight_net', 'vat_rate'
+    ]
+    
+    missing = [f for f in required_fields if not getattr(item, f)]
+    if missing:
+        return jsonify({"error": f"Item is missing required fields: {', '.join(missing)}"}), 400
+    
+    # Get form data
+    try:
+        sale_date_str = request.form.get('sale_date')
+        if not sale_date_str:
+            return jsonify({"error": "Sale date is required"}), 400
+        
+        sale_date = date.fromisoformat(sale_date_str)
+        
+        selling_price = Decimal(request.form.get('selling_price', '0'))
+        if selling_price <= 0:
+            return jsonify({"error": "Selling price must be greater than 0"}), 400
+        
+        # Optional fields
+        packaging = Decimal(request.form.get('packaging', '0') or '0')
+        delivery_cost = Decimal(request.form.get('delivery_cost', '0') or '0')
+        other_cost = Decimal(request.form.get('other_cost', '0') or '0')
+        delivery_fee = Decimal(request.form.get('delivery_fee', '0') or '0')
+        
+        discount_type = request.form.get('discount_type') or None
+        discount_value = request.form.get('discount_value')
+        discount_value = Decimal(discount_value) if discount_value else None
+        
+        notes = request.form.get('notes', '').strip() or None
+        
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"Invalid input: {str(e)}"}), 400
+    
+    # Calculate discount amount if provided
+    discount_amount = None
+    if discount_type and discount_value:
+        if discount_type == 'PERCENT':
+            discount_amount = (selling_price * discount_value / Decimal('100')).quantize(Decimal('0.01'))
+        elif discount_type == 'AMOUNT':
+            discount_amount = discount_value
+    
+    # Calculate metrics
+    metrics = calculate_sale_metrics(
+        selling_price,
+        item.vat_rate,
+        item.net_unit_cost,
+        item.freight_net,
+        packaging,
+        delivery_cost,
+        other_cost
+    )
+    
+    # Create sale record
     sale = Sale(
         item_pk_id=item.pk_id,
-        sale_date=form.sale_date.data,
-        item_selling_price_gross=gross,
-        discount_type=form.discount_type.data or None,
-        discount_value=form.discount_value.data,
-        discount_amount_gross=form.discount_amount_gross.data,
-        delivery_fee_charged_gross=form.delivery_fee_charged_gross.data or 0,
+        sale_date=sale_date,
+        item_selling_price_gross=selling_price,
+        discount_type=discount_type,
+        discount_value=discount_value,
+        discount_amount_gross=discount_amount,
+        delivery_fee_charged_gross=delivery_fee,
         packaging_net=packaging,
         delivery_cost_net=delivery_cost,
-        other_cost_net=other,
-        item_net_revenue=net_rev,
-        item_vat_amount=vat_amt,
-        item_profit=profit,
-        notes=form.notes.data,
-        created_by=current_user.pk_id,
+        other_cost_net=other_cost,
+        item_net_revenue=metrics['net_revenue'],
+        item_vat_amount=metrics['vat_amount'],
+        item_profit=metrics['profit'],
+        notes=notes,
+        created_by=current_user.pk_id
     )
-
+    
+    # Update item status
     item.status = "SOLD"
-
+    
     db.session.add(sale)
-    audit("SALE", sale.pk_id, "CREATE")
-    audit("ITEM", item.pk_id, "UPDATE", field="status", old="IN_STOCK", new="SOLD")
+    db.session.flush()
+    
+    # Audit
+    audit("SALE", sale.pk_id, "CREATE", reason=f"Item sold for €{selling_price}")
+    
     db.session.commit()
-
-    flash("Sale recorded (item marked SOLD).", "ok")
-    return redirect(url_for("routes.sales_list"))
-
-@routes_bp.post("/sales/<sale_pk_id>/reverse")
-@login_required
-def sales_reverse(sale_pk_id):
-    form = ReverseSaleForm()
-    sale = db.session.get(Sale, sale_pk_id)
-    if not sale:
-        flash("Sale not found.", "error")
-        return redirect(url_for("routes.sales_list"))
-
-    if not form.validate_on_submit():
-        flash("Reverse requires a reason.", "error")
-        return redirect(url_for("routes.sales_list"))
-
-    item = db.session.get(Item, sale.item_pk_id)
-    if not item:
-        flash("Linked item missing (data issue).", "error")
-        return redirect(url_for("routes.sales_list"))
-
-    reason = form.reason.data.strip()
-    item.status = "IN_STOCK"
-    audit("ITEM", item.pk_id, "UPDATE", field="status", old="SOLD", new="IN_STOCK", reason=reason)
-    audit("SALE", sale.pk_id, "REVERSE_SALE", reason=reason)
-
-    db.session.delete(sale)
-    db.session.commit()
-
-    flash("Sale reversed (item back to IN_STOCK).", "ok")
-    return redirect(url_for("routes.sales_list"))
-
+    
+    return jsonify({"success": True, "message": "Item marked as sold"})
