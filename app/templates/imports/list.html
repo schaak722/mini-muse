@@ -3,7 +3,7 @@
 <div class="topbar">
   <div>
     <h1 class="h1">Imports</h1>
-    <div class="sub">Upload batches and view processing results (upload step coming next).</div>
+    <div class="sub">View all CSV import batches and their processing results.</div>
   </div>
   <div>
     <a class="btn primary" href="{{ url_for('routes.imports_new') }}">New import</a>
@@ -18,26 +18,75 @@
     <table>
       <thead>
         <tr>
+          <th style="width:38px;"></th>
           <th>Uploaded</th>
           <th>Filename</th>
           <th>Total</th>
           <th>Success</th>
           <th>Failed</th>
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
         {% for b in batches %}
         <tr>
-          <td>{{ b.uploaded_at }}</td>
+          <td>
+            {% if b.failed_rows > 0 and b.error_report %}
+              <button class="btn" type="button" style="padding:6px 8px;" onclick="toggleRow('{{ b.pk_id }}')">▸</button>
+            {% endif %}
+          </td>
+          <td>{{ b.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</td>
           <td>{{ b.filename }}</td>
           <td>{{ b.total_rows }}</td>
           <td>{{ b.success_rows }}</td>
-          <td>{{ b.failed_rows }}</td>
+          <td>
+            {% if b.failed_rows > 0 %}
+              <span class="badge red">{{ b.failed_rows }}</span>
+            {% else %}
+              <span class="badge green">0</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if b.failed_rows == 0 %}
+              <span class="badge green">Complete</span>
+            {% elif b.success_rows > 0 %}
+              <span class="badge">Partial</span>
+            {% else %}
+              <span class="badge red">Failed</span>
+            {% endif %}
+          </td>
         </tr>
+
+        <!-- Expanded row for errors -->
+        {% if b.failed_rows > 0 and b.error_report %}
+        <tr id="row-{{ b.pk_id }}" style="display:none;">
+          <td colspan="7" style="background:#fafbfb;">
+            <div style="padding:12px;">
+              <b>Error Report:</b>
+              <pre style="margin-top:8px; background:#fff; padding:12px; border-radius:8px; border:1px solid var(--border); overflow:auto; max-height:400px; font-size:12px;">{{ b.error_report }}</pre>
+            </div>
+          </td>
+        </tr>
+        {% endif %}
         {% endfor %}
+
+        {% if not batches %}
+        <tr>
+          <td colspan="7" style="color: var(--muted);">
+            No import batches yet. Click "New import" to upload your first CSV.
+          </td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
 </div>
-{% endblock %}
 
+<script>
+function toggleRow(pk){
+  const tr = document.getElementById("row-" + pk);
+  if (!tr) return;
+  tr.style.display = (tr.style.display === "none" || !tr.style.display) ? "table-row" : "none";
+}
+</script>
+{% endblock %}
