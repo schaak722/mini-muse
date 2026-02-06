@@ -55,6 +55,13 @@ class Item(db.Model):
     item_description: Mapped[str] = mapped_column(String(500), nullable=False)
     sku: Mapped[str] = mapped_column(String(120), nullable=False)
 
+    # Optional product attributes
+    colour: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    size: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    dimension: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    weight: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    comments: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     net_unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     freight_net: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     vat_rate: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False, default=Decimal("0.18"))
