@@ -26,3 +26,16 @@ def create_app():
         return jsonify({"ok": True})
 
     return app
+
+@app.route("/run-migration-now")
+def run_migration_now():
+    try:
+        from flask_migrate import upgrade
+        from .extensions import db
+        
+        with app.app_context():
+            upgrade()
+        
+        return "Migration completed successfully! Remove this route now."
+    except Exception as e:
+        return f"Migration failed: {str(e)}"
