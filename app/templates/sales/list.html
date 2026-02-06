@@ -3,51 +3,172 @@
 <div class="topbar">
   <div>
     <h1 class="h1">Sales</h1>
-    <div class="sub">Recorded sales and profitability snapshots.</div>
+    <div class="sub">View and manage sold items</div>
   </div>
-  <div>
-    <a class="btn primary" href="{{ url_for('routes.sales_new') }}">Record sale</a>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-body">
+    <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+
+      <div class="field" style="min-width:340px; flex:1;">
+        <label>Search (SKU, Order #, Supplier, Brand, Description)</label>
+        <input name="q" value="{{ q or '' }}" placeholder="e.g. SR-PRZE or PO-123 or MayLily">
+      </div>
+
+      <div class="field">
+        <label>Order date from</label>
+        <input type="date" name="order_from" value="{{ order_from or '' }}">
+      </div>
+      <div class="field">
+        <label>Order date to</label>
+        <input type="date" name="order_to" value="{{ order_to or '' }}">
+      </div>
+
+      <div class="field">
+        <label>Sale date from</label>
+        <input type="date" name="sale_from" value="{{ sale_from or '' }}">
+      </div>
+      <div class="field">
+        <label>Sale date to</label>
+        <input type="date" name="sale_to" value="{{ sale_to or '' }}">
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn primary" type="submit">Apply</button>
+        <a class="btn" href="{{ url_for('routes.sales_list') }}">Reset</a>
+
+        <div style="position:relative;">
+          <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
+          <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
+            <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
+              <a href="#" onclick="alert('Export list coming in next phase'); return false;">Export list</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
 
 <div class="card">
   <div class="card-header">
-    <div class="card-title">Latest sales</div>
+    <div class="card-title">Sold Items</div>
   </div>
+
   <div class="card-body table-wrap">
     <table>
       <thead>
         <tr>
-          <th>Sale date</th>
-          <th>Item PK</th>
-          <th>Gross</th>
-          <th>Net rev</th>
-          <th>VAT</th>
+          <th style="width:38px;"></th>
+          <th>Sale Date</th>
+          <th>SKU</th>
+          <th>Description</th>
+          <th>Brand</th>
+          <th>Selling Price</th>
+          <th>Net Revenue</th>
           <th>Profit</th>
-          <th>Reverse</th>
+          <th style="text-align:right;">Actions</th>
         </tr>
       </thead>
       <tbody>
-        {% for s in sales %}
+        {% for i in items %}
         <tr>
-          <td>{{ s.sale_date }}</td>
-          <td>{{ s.item_pk_id }}</td>
-          <td>€{{ s.item_selling_price_gross }}</td>
-          <td>€{{ s.item_net_revenue }}</td>
-          <td>€{{ s.item_vat_amount }}</td>
-          <td>€{{ s.item_profit }}</td>
           <td>
-            <form method="post" action="{{ url_for('routes.sales_reverse', sale_pk_id=s.pk_id) }}" style="display:flex; gap:8px; align-items:center;">
-              {{ reverse_form.hidden_tag() }}
-              {{ reverse_form.reason(placeholder="Reason…", style="min-width:220px;") }}
-              <button class="btn danger" type="submit">Reverse</button>
-            </form>
+            <button class="btn" type="button" style="padding:6px 8px;" onclick="toggleRow('{{ i.pk_id }}')">▸</button>
+          </td>
+          <td>{{ i.sale.sale_date }}</td>
+          <td>{{ i.sku }}</td>
+          <td>{{ i.item_description }}</td>
+          <td>{{ i.brand }}</td>
+          <td>€{{ i.sale.item_selling_price_gross }}</td>
+          <td>€{{ i.sale.item_net_revenue }}</td>
+          <td>
+            {% if i.sale.item_profit >= 0 %}
+              <span style="color:var(--primary);">€{{ i.sale.item_profit }}</span>
+            {% else %}
+              <span style="color:var(--danger);">€{{ i.sale.item_profit }}</span>
+            {% endif %}
+          </td>
+          <td style="text-align:right;">
+            <button class="btn" type="button" onclick="alert('Edit sale coming next')">Edit</button>
+            <button class="btn" type="button" onclick="alert('Reverse sale coming next')">Reverse</button>
+          </td>
+        </tr>
+
+        <!-- Expanded row -->
+        <tr id="row-{{ i.pk_id }}" style="display:none;">
+          <td colspan="9" style="background:#fafbfb;">
+            <div style="padding:12px;">
+              <div class="grid cols-3" style="margin-bottom:12px;">
+                <div><b>Item ID:</b> {{ i.user_item_id }}</div>
+                <div><b>Order #:</b> {{ i.order_number }}</div>
+                <div><b>Supplier:</b> {{ i.company_name }}</div>
+              </div>
+              
+              <div class="grid cols-3" style="margin-bottom:12px;">
+                <div><b>Net Unit Cost:</b> €{{ i.net_unit_cost }}</div>
+                <div><b>Freight:</b> €{{ i.freight_net }}</div>
+                <div><b>VAT Rate:</b> {{ i.vat_rate }}</div>
+              </div>
+              
+              <div class="grid cols-3" style="margin-bottom:12px;">
+                <div><b>Packaging:</b> €{{ i.sale.packaging_net }}</div>
+                <div><b>Delivery Cost:</b> €{{ i.sale.delivery_cost_net }}</div>
+                <div><b>Other Cost:</b> €{{ i.sale.other_cost_net }}</div>
+              </div>
+
+              <div class="grid cols-3" style="margin-bottom:12px;">
+                <div><b>VAT Amount:</b> €{{ i.sale.item_vat_amount }}</div>
+                <div><b>Delivery Fee (Charged):</b> €{{ i.sale.delivery_fee_charged_gross }}</div>
+                {% if i.sale.discount_amount_gross %}
+                <div><b>Discount:</b> €{{ i.sale.discount_amount_gross }}</div>
+                {% endif %}
+              </div>
+
+              {% if i.sale.notes %}
+              <div style="margin-top:12px; padding:10px; background:#fff; border-radius:8px; border:1px solid var(--border);">
+                <b>Notes:</b> {{ i.sale.notes }}
+              </div>
+              {% endif %}
+            </div>
           </td>
         </tr>
         {% endfor %}
+
+        {% if not items %}
+        <tr>
+          <td colspan="9" style="color: var(--muted);">
+            No sales yet. Mark items as sold from the Inventory page.
+          </td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
 </div>
-{% endblock %}
 
+<script>
+function toggleRow(pk){
+  const tr = document.getElementById("row-" + pk);
+  if (!tr) return;
+  tr.style.display = (tr.style.display === "none" || !tr.style.display) ? "table-row" : "none";
+}
+
+function toggleMoreActions(){
+  const m = document.getElementById("moreActionsMenu");
+  if (!m) return;
+  m.style.display = (m.style.display === "none" || !m.style.display) ? "block" : "none";
+}
+
+document.addEventListener("click", (e) => {
+  const menu = document.getElementById("moreActionsMenu");
+  if (!menu) return;
+  const btn = e.target.closest("button");
+  if (btn && btn.textContent.includes("More actions")) return;
+  if (!e.target.closest("#moreActionsMenu")) {
+    menu.style.display = "none";
+  }
+});
+</script>
+{% endblock %}
