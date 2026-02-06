@@ -1,5 +1,271 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  /* Modal Styles */
+  .sold-modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sold-modal-backdrop.active {
+    display: flex;
+  }
+
+  .sold-modal {
+    background: var(--card);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 560px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 4px 16px rgba(22,29,37,.12);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sold-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sold-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .sold-close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .sold-close-btn:hover {
+    background: #f1f2f3;
+  }
+
+  .sold-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .sold-item-card {
+    background: linear-gradient(135deg, #eef7f3 0%, #e5f4ef 100%);
+    border: 1px solid #bfe8cf;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  .sold-item-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
+
+  .sold-item-meta {
+    display: grid;
+    gap: 8px;
+  }
+
+  .sold-meta-row {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+  }
+
+  .sold-meta-label {
+    color: var(--primary-dark);
+    font-weight: 600;
+    min-width: 60px;
+  }
+
+  .sold-meta-value {
+    color: var(--text);
+  }
+
+  .sold-section-title {
+    font-size: 14px;
+    font-weight: 650;
+    color: var(--text);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sold-section-title::before {
+    content: '';
+    width: 4px;
+    height: 16px;
+    background: var(--primary);
+    border-radius: 2px;
+  }
+
+  .sold-form-group {
+    margin-bottom: 16px;
+  }
+
+  .sold-form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+
+  .sold-required::after {
+    content: '*';
+    color: var(--danger);
+    margin-left: 4px;
+  }
+
+  .sold-form-group input,
+  .sold-form-group select,
+  .sold-form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fafbfb;
+    color: var(--text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.4;
+  }
+
+  .sold-form-group input:focus,
+  .sold-form-group select:focus,
+  .sold-form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  .sold-form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .sold-form-group select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236d7175' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  .sold-input-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  .sold-input-group select {
+    width: 140px;
+    flex-shrink: 0;
+  }
+
+  .sold-input-group input {
+    flex: 1;
+  }
+
+  .sold-helper-text {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .sold-currency-input {
+    position: relative;
+  }
+
+  .sold-currency-input::before {
+    content: '€';
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 14px;
+    pointer-events: none;
+    line-height: 1.4;
+    font-family: inherit;
+  }
+
+  .sold-currency-input input {
+    padding-left: 28px;
+  }
+
+  .sold-price-date-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .sold-costs-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .sold-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    background: #fafbfb;
+  }
+
+  @media (max-width: 768px) {
+    .sold-costs-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 600px) {
+    .sold-costs-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .sold-modal {
+      max-width: 100%;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+    }
+
+    .sold-price-date-row {
+      flex-direction: column;
+    }
+  }
+</style>
+
 <div class="topbar">
   <div>
     <h1 class="h1">Inventory</h1>
@@ -92,7 +358,17 @@
           <td>€{{ i.freight_net }}</td>
           <td style="text-align:right;">
             {% if i.status == 'IN_STOCK' %}
-              <button class="btn primary" type="button" onclick="openSoldModal('{{ i.pk_id }}', '{{ i.item_description }}', '{{ i.brand }}', '{{ i.sku }}', '{{ i.net_unit_cost }}', '{{ i.freight_net }}')">Sold</button>
+              <button class="btn primary" type="button" 
+                onclick="openSoldModal(
+                  '{{ i.pk_id }}', 
+                  '{{ i.item_description }}', 
+                  '{{ i.brand }}', 
+                  '{{ i.sku }}', 
+                  '{{ i.colour or '' }}',
+                  '{{ i.size or '' }}',
+                  '{{ i.net_unit_cost }}', 
+                  '{{ i.freight_net }}'
+                )">Sold</button>
             {% else %}
               <span class="badge gray">SOLD</span>
             {% endif %}
@@ -105,6 +381,12 @@
             <div class="grid cols-2" style="padding:12px;">
               <div><b>Internal Item ID:</b> {{ i.user_item_id }}</div>
               <div><b>VAT rate:</b> {{ i.vat_rate }}</div>
+              {% if i.colour %}
+              <div><b>Colour:</b> {{ i.colour }}</div>
+              {% endif %}
+              {% if i.size %}
+              <div><b>Size:</b> {{ i.size }}</div>
+              {% endif %}
               <div><b>Status:</b>
                 {% if i.status == 'IN_STOCK' %}
                   <span class="badge green">IN_STOCK</span>
@@ -134,87 +416,128 @@
 </div>
 
 <!-- Sold Modal -->
-<div id="soldModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-  <div class="card" style="width:90%; max-width:600px; max-height:90vh; overflow-y:auto;">
-    <div class="card-header">
-      <div class="card-title">Mark Item as Sold</div>
-      <button type="button" onclick="closeSoldModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">&times;</button>
+<div id="soldModal" class="sold-modal-backdrop">
+  <div class="sold-modal">
+    <div class="sold-modal-header">
+      <div class="sold-modal-title">Mark Item as Sold</div>
+      <button type="button" class="sold-close-btn" onclick="closeSoldModal()">&times;</button>
     </div>
     
-    <div class="card-body">
-      <form id="soldForm" class="form">
+    <div class="sold-modal-body">
+      <form id="soldForm">
         <input type="hidden" id="item_pk_id" name="item_pk_id">
         
-        <!-- Item Info (Read-only) -->
-        <div style="background:#f6f6f7; padding:12px; border-radius:10px; margin-bottom:12px;">
-          <div style="margin-bottom:8px;"><b id="modal_description"></b></div>
-          <div style="font-size:13px; color:var(--muted);">
-            <div>Brand: <span id="modal_brand"></span></div>
-            <div>SKU: <span id="modal_sku"></span></div>
+        <!-- Item Info Card -->
+        <div class="sold-item-card">
+          <div class="sold-item-title" id="modal_description"></div>
+          <div class="sold-item-meta">
+            <div class="sold-meta-row">
+              <span class="sold-meta-label">Brand:</span>
+              <span class="sold-meta-value" id="modal_brand"></span>
+            </div>
+            <div class="sold-meta-row" id="modal_colour_row" style="display:none;">
+              <span class="sold-meta-label">Colour:</span>
+              <span class="sold-meta-value" id="modal_colour"></span>
+            </div>
+            <div class="sold-meta-row" id="modal_size_row" style="display:none;">
+              <span class="sold-meta-label">Size:</span>
+              <span class="sold-meta-value" id="modal_size"></span>
+            </div>
+            <div class="sold-meta-row">
+              <span class="sold-meta-label">SKU:</span>
+              <span class="sold-meta-value" id="modal_sku"></span>
+            </div>
           </div>
-          <div style="margin-top:8px; font-size:12px; color:var(--muted); padding-top:8px; border-top:1px solid var(--border);">
-            Net Cost: €<span id="modal_net_cost"></span> | Freight: €<span id="modal_freight"></span>
+        </div>
+
+        <!-- Sale Details Section -->
+        <div class="sold-section-title">Sale Details</div>
+
+        <div class="sold-price-date-row">
+          <div class="sold-form-group" style="flex: 1; margin-bottom: 0;">
+            <label class="sold-required">Final Selling Price (VAT-inclusive)</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" name="selling_price" id="selling_price" placeholder="0.00" required>
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="flex: 1; margin-bottom: 0;">
+            <label class="sold-required">Sale Date</label>
+            <input type="date" name="sale_date" id="sale_date" required>
           </div>
         </div>
 
-        <!-- Sale Date -->
-        <div class="field">
-          <label>Sale Date *</label>
-          <input type="date" name="sale_date" id="sale_date" required>
-        </div>
-
-        <!-- Selling Price -->
-        <div class="field">
-          <label>Final Item Selling Price (gross, VAT-inclusive) *</label>
-          <input type="number" step="0.01" name="selling_price" id="selling_price" placeholder="0.00" required>
-        </div>
-
-        <!-- Discount -->
-        <div class="field">
-          <label>Discount (optional)</label>
-          <div style="display:flex; gap:8px;">
-            <select name="discount_type" id="discount_type" style="width:120px;">
+        <div class="sold-form-group">
+          <label>Discount</label>
+          <div class="sold-input-group">
+            <select name="discount_type" id="discount_type">
               <option value="">None</option>
               <option value="PERCENT">Percent</option>
               <option value="AMOUNT">Amount</option>
             </select>
-            <input type="number" step="0.01" name="discount_value" id="discount_value" placeholder="0.00" style="flex:1;">
+            <input type="number" step="0.01" name="discount_value" id="discount_value" placeholder="0.00">
+          </div>
+          <div class="sold-helper-text">Optional: Enter discount as percentage or fixed amount</div>
+        </div>
+
+        <!-- Additional Costs Section -->
+        <div class="sold-section-title" style="margin-top: 24px;">Additional Costs</div>
+
+        <div class="sold-costs-grid">
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Net Unit Cost</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" id="modal_net_cost" readonly>
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Freight</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" id="modal_freight" readonly>
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Packaging Cost</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" name="packaging" id="packaging" placeholder="0.00" value="0.50">
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Delivery Cost</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" name="delivery_cost" id="delivery_cost" placeholder="0.00" value="0.00">
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Other Costs</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" name="other_cost" id="other_cost" placeholder="0.00" value="0.00">
+            </div>
+          </div>
+
+          <div class="sold-form-group" style="margin-bottom: 0;">
+            <label>Delivery Fee (Charged)</label>
+            <div class="sold-currency-input">
+              <input type="number" step="0.01" name="delivery_fee" id="delivery_fee" placeholder="0.00" value="0.00">
+            </div>
           </div>
         </div>
 
-        <!-- Costs -->
-        <div class="field">
-          <label>Packaging Cost (net)</label>
-          <input type="number" step="0.01" name="packaging" id="packaging" placeholder="0.00" value="0.50">
-        </div>
-
-        <div class="field">
-          <label>Delivery Cost to Business (net)</label>
-          <input type="number" step="0.01" name="delivery_cost" id="delivery_cost" placeholder="0.00" value="0.00">
-        </div>
-
-        <div class="field">
-          <label>Other Cost (net)</label>
-          <input type="number" step="0.01" name="other_cost" id="other_cost" placeholder="0.00" value="0.00">
-        </div>
-
-        <div class="field">
-          <label>Delivery Fee Charged to Buyer (gross, for future reporting)</label>
-          <input type="number" step="0.01" name="delivery_fee" id="delivery_fee" placeholder="0.00" value="0.00">
-        </div>
-
         <!-- Notes -->
-        <div class="field">
+        <div class="sold-form-group" style="margin-top: 16px;">
           <label>Notes</label>
-          <textarea name="notes" id="notes" placeholder="Optional notes..."></textarea>
-        </div>
-
-        <!-- Actions -->
-        <div style="display:flex; gap:10px; margin-top:16px;">
-          <button type="submit" class="btn primary">Mark as Sold</button>
-          <button type="button" class="btn" onclick="closeSoldModal()">Cancel</button>
+          <textarea name="notes" id="notes" placeholder="Optional notes about this sale..."></textarea>
         </div>
       </form>
+    </div>
+
+    <div class="sold-modal-footer">
+      <button type="button" class="btn" onclick="closeSoldModal()">Cancel</button>
+      <button type="button" class="btn primary" onclick="submitSoldForm()">Mark as Sold</button>
     </div>
   </div>
 </div>
@@ -243,13 +566,29 @@ document.addEventListener("click", (e) => {
 });
 
 // Modal functions
-function openSoldModal(pk_id, description, brand, sku, net_cost, freight) {
+function openSoldModal(pk_id, description, brand, sku, colour, size, net_cost, freight) {
   document.getElementById('item_pk_id').value = pk_id;
   document.getElementById('modal_description').textContent = description;
   document.getElementById('modal_brand').textContent = brand;
   document.getElementById('modal_sku').textContent = sku;
-  document.getElementById('modal_net_cost').textContent = net_cost;
-  document.getElementById('modal_freight').textContent = freight;
+  
+  // Handle optional colour and size
+  if (colour && colour.trim()) {
+    document.getElementById('modal_colour').textContent = colour;
+    document.getElementById('modal_colour_row').style.display = 'flex';
+  } else {
+    document.getElementById('modal_colour_row').style.display = 'none';
+  }
+  
+  if (size && size.trim()) {
+    document.getElementById('modal_size').textContent = size;
+    document.getElementById('modal_size_row').style.display = 'flex';
+  } else {
+    document.getElementById('modal_size_row').style.display = 'none';
+  }
+  
+  document.getElementById('modal_net_cost').value = net_cost;
+  document.getElementById('modal_freight').value = freight;
   
   // Set sale date to today
   const today = new Date().toISOString().split('T')[0];
@@ -257,22 +596,23 @@ function openSoldModal(pk_id, description, brand, sku, net_cost, freight) {
   
   // Reset form
   document.getElementById('soldForm').reset();
-  document.getElementById('sale_date').value = today; // Re-set after reset
+  document.getElementById('sale_date').value = today;
+  document.getElementById('modal_net_cost').value = net_cost;
+  document.getElementById('modal_freight').value = freight;
+  document.getElementById('packaging').value = '0.50';
   
   // Show modal
-  document.getElementById('soldModal').style.display = 'flex';
+  document.getElementById('soldModal').classList.add('active');
 }
 
 function closeSoldModal() {
-  document.getElementById('soldModal').style.display = 'none';
+  document.getElementById('soldModal').classList.remove('active');
 }
 
-// Handle form submission
-document.getElementById('soldForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  
+async function submitSoldForm() {
+  const form = document.getElementById('soldForm');
   const pk_id = document.getElementById('item_pk_id').value;
-  const formData = new FormData(e.target);
+  const formData = new FormData(form);
   
   try {
     const response = await fetch(`/items/${pk_id}/sell`, {
@@ -291,11 +631,18 @@ document.getElementById('soldForm').addEventListener('submit', async (e) => {
   } catch (error) {
     alert('Error: ' + error.message);
   }
-});
+}
 
 // Close modal on escape key
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
+    closeSoldModal();
+  }
+});
+
+// Close modal when clicking backdrop
+document.getElementById('soldModal').addEventListener('click', (e) => {
+  if (e.target.id === 'soldModal') {
     closeSoldModal();
   }
 });
