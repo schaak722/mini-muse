@@ -42,9 +42,8 @@
           <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
           <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
             <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
-              <!-- placeholders: we wire these up in Phase 2 (CSV import/export) -->
-              <a href="#" onclick="alert('Import Order (CSV) coming next phase'); return false;">Import Order (CSV)</a>
-              <a href="#" onclick="alert('Export list coming next phase'); return false;">Export list</a>
+              <a href="{{ url_for('routes.imports_new') }}">Import Order (CSV)</a>
+              <a href="#" onclick="alert('Export list coming in next phase'); return false;">Export list</a>
               <a href="{{ url_for('routes.items_new') }}">Manual input item</a>
             </div>
           </div>
