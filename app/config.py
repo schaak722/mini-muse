@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", h3G4g0mJxQ9n7pV1zR6kL2sT8wY5uE0aC3dF9hJ4)
+    SECRET_KEY = os.getenv("SECRET_KEY", "h3G4g0mJxQ9n7pV1zR6kL2sT8wY5uE0aC3dF9hJ4")
 
     DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
     if not DATABASE_URL:
