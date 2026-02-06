@@ -249,11 +249,13 @@ def imports_create():
         error_report=json.dumps(errors, indent=2) if errors else None
     )
     db.session.add(batch)
+    db.session.flush()  # ADD THIS LINE - generates the pk_id
     
     # Create audit log
     audit("IMPORT_BATCH", batch.pk_id, "CREATE", reason=f"Imported {success_rows}/{total_rows} items")
     
     # Commit everything
+    
     try:
         db.session.commit()
         
