@@ -495,6 +495,21 @@
     }
   }
 
+  @media (max-width: 768px) {
+    /* Stack comments and buttons on mobile */
+    .row3-flex {
+      flex-direction: column !important;
+    }
+    
+    .row3-flex > div:first-child {
+      flex: 1 !important;
+    }
+    
+    .row3-flex > div:last-child {
+      align-items: stretch !important;
+    }
+  }
+
   @media (max-width: 480px) {
     .detail-grid {
       grid-template-columns: 1fr;
@@ -608,8 +623,8 @@
                 </div>
               </div>
 
-              <!-- Row 2: Net Unit Cost, Freight, VAT, Status + Buttons -->
-              <div class="detail-grid" style="position: relative;">
+              <!-- Row 2: Net Unit Cost, Freight, VAT, Status -->
+              <div class="detail-grid">
                 <div class="detail-item">
                   <div class="detail-label">Net Unit Cost</div>
                   <div class="detail-value">€{{ i.net_unit_cost }}</div>
@@ -632,9 +647,21 @@
                     {% endif %}
                   </div>
                 </div>
-                
-                <!-- Action Buttons - Right Side -->
-                <div style="position: absolute; right: 0; top: 0; display: flex; flex-direction: column; gap: 10px;">
+              </div>
+
+              <!-- Row 3: Comments (left, 50%) and Buttons (right, under Status) -->
+              <div class="row3-flex" style="display: flex; gap: 16px; margin-top: 16px;">
+                <div style="flex: 0 0 50%;">
+                  <div class="detail-label">Comments</div>
+                  <textarea 
+                    class="comments-textarea" 
+                    id="comments-{{ i.pk_id }}"
+                    placeholder="Add comments..."
+                    onblur="saveComments('{{ i.pk_id }}')"
+                  >{{ i.comments or '' }}</textarea>
+                  <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
                   <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit</a>
                   {% if i.status == 'IN_STOCK' %}
                     <button class="btn primary" type="button" 
@@ -650,19 +677,6 @@
                       )">Mark Sold</button>
                   {% endif %}
                 </div>
-              </div>
-
-              <!-- Row 3: Comments Only -->
-              <div style="margin-top: 16px;">
-                <div class="detail-label">Comments</div>
-                <textarea 
-                  class="comments-textarea" 
-                  id="comments-{{ i.pk_id }}"
-                  placeholder="Add comments..."
-                  onblur="saveComments('{{ i.pk_id }}')"
-                  style="width: 100%;"
-                >{{ i.comments or '' }}</textarea>
-                <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
               </div>
             </div>
           </td>
