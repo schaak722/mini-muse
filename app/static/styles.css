@@ -6,11 +6,14 @@
   --border: #e1e3e5;
   --primary: #008060;      /* Shopify green */
   --primary-dark: #006e52;
+  --primary-light: #eef7f3;
   --danger: #d72c0d;
   --warning: #b98900;
   --shadow: 0 1px 0 rgba(22,29,37,.05);
   --radius: 12px;
   --sidebar: #ffffff;
+  --peach: #E8A598;
+  --peach-light: #FDF5F3;
 }
 
 * { box-sizing: border-box; }
@@ -27,58 +30,86 @@ a:hover { text-decoration: underline; }
 
 .layout{
   display:grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 220px 1fr;
   min-height: 100vh;
 }
 
 .sidebar{
   background: var(--sidebar);
   border-right: 1px solid var(--border);
-  padding: 18px 14px;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   position: sticky;
   top: 0;
-  height: 100vh;
 }
 
 .brand{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  padding: 10px 12px 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
 }
-.brand-dot{
-  width: 12px; height: 12px; border-radius: 50%;
-  background: var(--primary);
-}
-.brand-title{
-  font-weight: 700;
-  letter-spacing: .2px;
+
+.brand-logo{
+  height: 32px;
+  width: auto;
 }
 
 .nav{
   display:flex;
   flex-direction: column;
   gap: 4px;
-  margin-top: 8px;
+  flex: 1;
 }
+
 .nav a{
   padding: 10px 12px;
   border-radius: 10px;
   color: var(--text);
-  display:flex;
-  align-items:center;
-  justify-content: space-between;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
 }
-.nav a.active{
-  background: #eef7f3;
-  color: var(--primary-dark);
-  font-weight: 600;
-}
+
 .nav a:hover{
   background: #f1f2f3;
   text-decoration: none;
+}
+
+.nav a.active{
+  background: var(--peach-light);
+  color: var(--peach);
+  font-weight: 600;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.nav a.active .nav-icon {
+  opacity: 1;
+}
+
+.nav-spacer {
+  flex: 1;
+}
+
+.logout-section {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
 }
 
 .content{
@@ -234,4 +265,3 @@ tr:hover td{ background: #fafbfb; }
   margin: 80px auto;
   padding: 0 14px;
 }
-
