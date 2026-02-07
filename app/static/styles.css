@@ -1,26 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&display=swap');
+
 :root{
-  --bg: #f6f6f7;           /* Shopify-ish canvas */
+  --bg: #f6f6f7;
   --card: #ffffff;
-  --text: #202223;         /* Shopify admin text */
+  --text: #202223;
   --muted: #6d7175;
   --border: #e1e3e5;
-  --primary: #008060;      /* Shopify green */
-  --primary-dark: #006e52;
-  --primary-light: #eef7f3;
+  --primary: #e79784;
+  --primary-dark: #d68874;
+  --primary-light: #fdf5f3;
   --danger: #d72c0d;
   --warning: #b98900;
   --shadow: 0 1px 0 rgba(22,29,37,.05);
   --radius: 12px;
   --sidebar: #ffffff;
-  --peach: #E8A598;
-  --peach-light: #FDF5F3;
+  --peach: #e79784;
+  --peach-light: #fdf5f3;
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body{
   margin:0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  font-family: 'Open Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: var(--bg);
 }
@@ -175,15 +177,17 @@ table{
   font-size: 13px;
 }
 th, td{
-  padding: 10px 12px;
+  padding: 12px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 th{
   text-align:left;
   color: var(--muted);
-  font-weight: 650;
+  font-weight: 600;
   font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 tr:hover td{ background: #fafbfb; }
 
@@ -198,7 +202,7 @@ tr:hover td{ background: #fafbfb; }
   background: #f1f2f3;
   color: var(--text);
 }
-.badge.green{ background:#eaf8f0; border-color:#bfe8cf; color: var(--primary-dark); }
+.badge.green{ background: var(--primary-light); border-color: #f5d4cb; color: var(--primary-dark); }
 .badge.gray{ background:#f1f2f3; }
 .badge.red{ background:#fde9e6; border-color:#f3b3a8; color: var(--danger); }
 
@@ -214,8 +218,13 @@ tr:hover td{ background: #fafbfb; }
   font-weight: 650;
   font-size: 13px;
   cursor: pointer;
+  font-family: 'Open Sans', sans-serif;
+  transition: all 0.2s;
 }
-.btn:hover{ background: #f6f6f7; }
+.btn:hover{ 
+  background: #f6f6f7;
+  text-decoration: none;
+}
 .btn.primary{
   background: var(--primary);
   border-color: var(--primary);
@@ -247,6 +256,7 @@ tr:hover td{ background: #fafbfb; }
   border: 1px solid var(--border);
   background: #fff;
   font-size: 13px;
+  font-family: 'Open Sans', sans-serif;
 }
 .field textarea{ min-height: 90px; resize: vertical; }
 
@@ -258,7 +268,7 @@ tr:hover td{ background: #fafbfb; }
   margin-bottom: 12px;
 }
 .flash.error{ border-color: #f3b3a8; background:#fde9e6; }
-.flash.ok{ border-color: #bfe8cf; background:#eaf8f0; }
+.flash.ok{ border-color: #f5d4cb; background: var(--primary-light); }
 
 .auth-wrap{
   max-width: 420px;
