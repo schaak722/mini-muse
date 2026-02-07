@@ -27,6 +27,8 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 @login_required
 def items_list():
     from datetime import datetime
+    import math
+    from urllib.parse import urlencode
     
     q = (request.args.get("q") or "").strip()
 
@@ -38,6 +40,10 @@ def items_list():
     per_page = int(request.args.get("per_page", 25))
     if per_page not in [25, 50, 100]:
         per_page = 25
+    
+    page = int(request.args.get("page", 1))
+    if page < 1:
+        page = 1
 
     # Inventory page = IN_STOCK only (per spec)
     query = db.session.query(Item).filter(Item.status == "IN_STOCK")
@@ -74,8 +80,54 @@ def items_list():
     except ValueError as e:
         flash(f"Invalid date format. Please use the date picker.", "error")
 
-    items = query.order_by(Item.arrival_date.desc()).limit(per_page).all()
+    # Count total
     total_count = query.count()
+    total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
+    
+    # Ensure page doesn't exceed total pages
+    if page > total_pages:
+        page = total_pages
+    
+    # Get items for current page
+    offset = (page - 1) * per_page
+    items = query.order_by(Item.arrival_date.desc()).limit(per_page).offset(offset).all()
+    
+    # Calculate display range
+    start_item = offset + 1 if total_count > 0 else 0
+    end_item = min(offset + per_page, total_count)
+    
+    # Generate smart page range
+    page_range = []
+    if total_pages <= 7:
+        # Show all pages
+        page_range = list(range(1, total_pages + 1))
+    else:
+        # Smart pagination with ellipsis
+        if page <= 4:
+            # Near start: 1 2 3 4 5 ... last
+            page_range = list(range(1, 6)) + ['...', total_pages]
+        elif page >= total_pages - 3:
+            # Near end: 1 ... -4 -3 -2 -1 last
+            page_range = [1, '...'] + list(range(total_pages - 4, total_pages + 1))
+        else:
+            # Middle: 1 ... page-1 page page+1 ... last
+            page_range = [1, '...'] + list(range(page - 1, page + 2)) + ['...', total_pages]
+    
+    # Build URL helper
+    def build_url(target_page):
+        params = {}
+        if q:
+            params['q'] = q
+        if date_type and date_type != 'arrival':
+            params['date_type'] = date_type
+        if date_from:
+            params['date_from'] = date_from
+        if date_to:
+            params['date_to'] = date_to
+        if per_page != 25:
+            params['per_page'] = per_page
+        params['page'] = target_page
+        return url_for('routes.items_list') + '?' + urlencode(params)
 
     return render_template(
         "items/list.html",
@@ -86,7 +138,13 @@ def items_list():
         date_from=date_from,
         date_to=date_to,
         per_page=per_page,
+        page=page,
+        total_pages=total_pages,
         total_count=total_count,
+        start_item=start_item,
+        end_item=end_item,
+        page_range=page_range,
+        build_url=build_url,
     )
 
 @routes_bp.get("/items/new")
