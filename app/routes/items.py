@@ -28,10 +28,9 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 def items_list():
     q = (request.args.get("q") or "").strip()
 
-    order_from = (request.args.get("order_from") or "").strip()
-    order_to = (request.args.get("order_to") or "").strip()
-    arrival_from = (request.args.get("arrival_from") or "").strip()
-    arrival_to = (request.args.get("arrival_to") or "").strip()
+    date_type = request.args.get("date_type", "arrival")
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
 
     # Inventory page = IN_STOCK only (per spec)
     query = db.session.query(Item).filter(Item.status == "IN_STOCK")
@@ -49,17 +48,17 @@ def items_list():
             )
         )
 
-    # Order Date range
-    if order_from:
-        query = query.filter(Item.order_date >= order_from)
-    if order_to:
-        query = query.filter(Item.order_date <= order_to)
-
-    # Arrival Date range
-    if arrival_from:
-        query = query.filter(Item.arrival_date >= arrival_from)
-    if arrival_to:
-        query = query.filter(Item.arrival_date <= arrival_to)
+    # Date range based on selected type
+    if date_type == "order":
+        if date_from:
+            query = query.filter(Item.order_date >= date_from)
+        if date_to:
+            query = query.filter(Item.order_date <= date_to)
+    else:  # arrival
+        if date_from:
+            query = query.filter(Item.arrival_date >= date_from)
+        if date_to:
+            query = query.filter(Item.arrival_date <= date_to)
 
     items = query.order_by(Item.arrival_date.desc()).limit(500).all()
 
@@ -68,10 +67,9 @@ def items_list():
         active_nav="items",
         items=items,
         q=q,
-        order_from=order_from,
-        order_to=order_to,
-        arrival_from=arrival_from,
-        arrival_to=arrival_to,
+        date_type=date_type,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 @routes_bp.get("/items/new")
