@@ -281,7 +281,7 @@
 
   .detail-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px 24px;
     margin-bottom: 16px;
   }
@@ -304,6 +304,33 @@
     font-weight: 500;
   }
 
+  .comments-section {
+    margin-bottom: 16px;
+  }
+
+  .comments-box {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 13px;
+    color: var(--text);
+    min-height: 60px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .comments-box.empty {
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .actions-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
   .chevron-cell {
     width: 40px;
     text-align: center;
@@ -322,7 +349,7 @@
     transform: rotate(180deg);
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
     }
@@ -389,26 +416,28 @@
     <table>
       <thead>
         <tr>
-          <th>SKU</th>
+          <th>Internal ID</th>
+          <th>Brand</th>
           <th>Item Description</th>
           <th>Colour</th>
           <th>Size</th>
-          <th>Brand</th>
-          <th>Arrival Date</th>
+          <th>Dimensions</th>
           <th>RRP</th>
+          <th>Arrival Date</th>
           <th class="chevron-cell"></th>
         </tr>
       </thead>
       <tbody>
         {% for i in items %}
         <tr onclick="toggleRow('{{ i.pk_id }}')" style="cursor: pointer;">
-          <td>{{ i.sku }}</td>
+          <td>{{ i.user_item_id }}</td>
+          <td>{{ i.brand }}</td>
           <td>{{ i.item_description }}</td>
           <td>{{ i.colour or '-' }}</td>
           <td>{{ i.size or '-' }}</td>
-          <td>{{ i.brand }}</td>
-          <td>{{ i.arrival_date }}</td>
+          <td>{{ i.dimension or '-' }}</td>
           <td>€{{ ((i.net_unit_cost + i.freight_net) * (1 + i.vat_rate) * 2) | round(2) }}</td>
+          <td>{{ i.arrival_date.strftime('%d-%m-%Y') if i.arrival_date else '-' }}</td>
           <td class="chevron-cell">
             <span class="chevron-btn" id="chevron-{{ i.pk_id }}">▼</span>
           </td>
@@ -416,9 +445,14 @@
 
         <!-- Expanded row -->
         <tr class="expanded-row" id="row-{{ i.pk_id }}">
-          <td colspan="8">
+          <td colspan="9">
             <div class="expanded-content">
+              <!-- Row 1: SKU, Supplier, Order Number, Order Date -->
               <div class="detail-grid">
+                <div class="detail-item">
+                  <div class="detail-label">SKU</div>
+                  <div class="detail-value">{{ i.sku }}</div>
+                </div>
                 <div class="detail-item">
                   <div class="detail-label">Supplier</div>
                   <div class="detail-value">{{ i.company_name }}</div>
@@ -429,8 +463,12 @@
                 </div>
                 <div class="detail-item">
                   <div class="detail-label">Order Date</div>
-                  <div class="detail-value">{{ i.order_date }}</div>
+                  <div class="detail-value">{{ i.order_date.strftime('%d-%m-%Y') if i.order_date else '-' }}</div>
                 </div>
+              </div>
+
+              <!-- Row 2: Net Unit Cost, Freight, VAT, Status -->
+              <div class="detail-grid">
                 <div class="detail-item">
                   <div class="detail-label">Net Unit Cost</div>
                   <div class="detail-value">€{{ i.net_unit_cost }}</div>
@@ -438,6 +476,10 @@
                 <div class="detail-item">
                   <div class="detail-label">Freight</div>
                   <div class="detail-value">€{{ i.freight_net }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">VAT</div>
+                  <div class="detail-value">{{ (i.vat_rate * 100) | round(0) | int }}%</div>
                 </div>
                 <div class="detail-item">
                   <div class="detail-label">Status</div>
@@ -450,21 +492,31 @@
                   </div>
                 </div>
               </div>
-              <div style="display: flex; gap: 10px;">
-                {% if i.status == 'IN_STOCK' %}
-                  <button class="btn primary" type="button" 
-                    onclick="event.stopPropagation(); openSoldModal(
-                      '{{ i.pk_id }}', 
-                      '{{ i.item_description }}', 
-                      '{{ i.brand }}', 
-                      '{{ i.sku }}', 
-                      '{{ i.colour or '' }}',
-                      '{{ i.size or '' }}',
-                      '{{ i.net_unit_cost }}', 
-                      '{{ i.freight_net }}'
-                    )">Mark as Sold</button>
-                {% endif %}
-                <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit Item</a>
+
+              <!-- Row 3: Comments box and buttons -->
+              <div style="display: flex; gap: 16px; align-items: flex-start;">
+                <div class="comments-section" style="flex: 1;">
+                  <div class="detail-label">Comments</div>
+                  <div class="comments-box {% if not i.comments %}empty{% endif %}">
+                    {{ i.comments or 'No comments' }}
+                  </div>
+                </div>
+                <div class="actions-row" style="flex-shrink: 0;">
+                  {% if i.status == 'IN_STOCK' %}
+                    <button class="btn primary" type="button" 
+                      onclick="event.stopPropagation(); openSoldModal(
+                        '{{ i.pk_id }}', 
+                        '{{ i.item_description }}', 
+                        '{{ i.brand }}', 
+                        '{{ i.sku }}', 
+                        '{{ i.colour or '' }}',
+                        '{{ i.size or '' }}',
+                        '{{ i.net_unit_cost }}', 
+                        '{{ i.freight_net }}'
+                      )">Mark as Sold</button>
+                  {% endif %}
+                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit Item</a>
+                </div>
               </div>
             </div>
           </td>
@@ -473,7 +525,7 @@
 
         {% if not items %}
         <tr>
-          <td colspan="8" style="color: var(--muted); text-align: center; padding: 40px;">
+          <td colspan="9" style="color: var(--muted); text-align: center; padding: 40px;">
             No items found. Try changing filters or import an order CSV.
           </td>
         </tr>
