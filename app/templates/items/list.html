@@ -44,103 +44,33 @@
     letter-spacing: 0.5px;
   }
 
-  /* Pagination Container */
-  .pagination-container {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 16px;
-    border-top: 1px solid var(--border);
-    background: #fafbfb;
-    flex-wrap: wrap;
-    gap: 16px;
-  }
-
-  .pagination-info {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 13px;
+  /* Live Search Styles */
+  .search-hint {
+    font-size: 12px;
     color: var(--muted);
+    margin-top: 6px;
   }
 
-  .pagination-info select {
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    font-size: 13px;
-    font-family: 'Open Sans', sans-serif;
-    background: white;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-
-  .pagination-info select:hover {
-    border-color: var(--primary);
-  }
-
-  .pagination-controls {
-    display: flex;
+  .search-status {
+    display: inline-flex;
     align-items: center;
     gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
   }
 
-  .page-btn {
-    min-width: 36px;
-    height: 36px;
-    padding: 0 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: white;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    color: var(--text);
-    text-decoration: none;
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
   }
 
-  .page-btn:hover:not(.disabled):not(.ellipsis) {
-    border-color: var(--primary);
-    color: var(--primary);
-    text-decoration: none;
-  }
-
-  .page-btn.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-  }
-
-  .page-btn.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    pointer-events: none;
-  }
-
-  .page-btn.ellipsis {
-    border: none;
-    background: none;
-    cursor: default;
-    pointer-events: none;
-  }
-
-  @media (max-width: 768px) {
-    .pagination-container {
-      flex-direction: column;
-      align-items: stretch;
-    }
-
-    .pagination-controls {
-      justify-content: center;
-    }
-
-    .pagination-info {
-      justify-content: center;
-    }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   /* Sold Modal Styles */
@@ -446,6 +376,10 @@
     font-weight: 500;
   }
 
+  .comments-section {
+    width: 50%;
+  }
+
   .comments-textarea {
     width: 100%;
     background: #fff;
@@ -471,6 +405,25 @@
     font-style: italic;
   }
 
+  .save-comments-btn {
+    margin-top: 8px;
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .row3-container {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .actions-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    justify-content: center;
+  }
+
   .chevron-cell {
     width: 40px;
     text-align: center;
@@ -489,9 +442,35 @@
     transform: rotate(180deg);
   }
 
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .pagination-info select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+  }
+
   @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .row3-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .comments-section {
+      width: 100%;
     }
   }
 
@@ -505,12 +484,24 @@
 <!-- Search & Filters - NO TITLE -->
 <div class="card" style="margin-bottom:14px;">
   <div class="card-body">
-    <form method="get" id="filtersForm" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-      <input type="hidden" name="page" value="1">
+    <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
 
       <div class="field" style="min-width:340px; flex:1;">
         <label>Search (SKU, Brand, Description)</label>
-        <input name="q" value="{{ q or '' }}" placeholder="Search items...">
+        <input 
+          id="liveSearchInput" 
+          name="q" 
+          value="{{ q or '' }}" 
+          placeholder="Type at least 3 characters..."
+          autocomplete="off"
+        >
+        <div class="search-hint" id="searchHint" style="display: {% if q and q|length < 3 %}block{% else %}none{% endif %};">
+          Type at least 3 characters to search
+        </div>
+        <div class="search-status" id="searchStatus" style="display: none;">
+          <div class="spinner"></div>
+          <span>Searching...</span>
+        </div>
       </div>
 
       <div class="field" style="width: 160px;">
@@ -546,6 +537,18 @@
       </div>
     </form>
   </div>
+</div>
+
+<!-- Pagination Info -->
+<div class="pagination-info">
+  <span>Showing {{ items|length }} of {{ total_count }} items</span>
+  <span>|</span>
+  <label>Items per page:</label>
+  <select onchange="updatePerPage(this.value)">
+    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+  </select>
 </div>
 
 <div class="card">
@@ -634,9 +637,9 @@
                 </div>
               </div>
 
-              <!-- Row 3: Comments (columns 1-2) + Buttons (column 4, aligned with textarea) -->
-              <div class="detail-grid" style="margin-top: 16px; align-items: start;">
-                <div style="grid-column: 1 / 3;">
+              <!-- Row 3: Comments (left, 50%) and Buttons (right, center-aligned) -->
+              <div class="row3-container">
+                <div class="comments-section">
                   <div class="detail-label">Comments</div>
                   <textarea 
                     class="comments-textarea" 
@@ -646,29 +649,21 @@
                   >{{ i.comments or '' }}</textarea>
                   <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
                 </div>
-
-                <!-- Empty column 3 -->
-                <div></div>
-
-                <!-- Buttons in column 4, vertically aligned with textarea -->
-                <div style="display: flex; flex-direction: column;">
-                  <div style="height: 24px;"></div> <!-- Spacer for label -->
-                  <div style="display: flex; flex-direction: column; justify-content: space-between; height: 80px;">
-                    <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit Item</a>
-                    {% if i.status == 'IN_STOCK' %}
-                      <button class="btn primary" type="button" 
-                        onclick="event.stopPropagation(); openSoldModal(
-                          '{{ i.pk_id }}', 
-                          '{{ i.item_description }}', 
-                          '{{ i.brand }}', 
-                          '{{ i.sku }}', 
-                          '{{ i.colour or '' }}',
-                          '{{ i.size or '' }}',
-                          '{{ i.net_unit_cost }}', 
-                          '{{ i.freight_net }}'
-                        )">Mark Sold</button>
-                    {% endif %}
-                  </div>
+                <div class="actions-col">
+                  {% if i.status == 'IN_STOCK' %}
+                    <button class="btn primary" type="button" 
+                      onclick="event.stopPropagation(); openSoldModal(
+                        '{{ i.pk_id }}', 
+                        '{{ i.item_description }}', 
+                        '{{ i.brand }}', 
+                        '{{ i.sku }}', 
+                        '{{ i.colour or '' }}',
+                        '{{ i.size or '' }}',
+                        '{{ i.net_unit_cost }}', 
+                        '{{ i.freight_net }}'
+                      )">Mark Sold</button>
+                  {% endif %}
+                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit</a>
                 </div>
               </div>
             </div>
@@ -685,46 +680,6 @@
         {% endif %}
       </tbody>
     </table>
-  </div>
-
-  <!-- Pagination at Bottom -->
-  <div class="pagination-container">
-    <!-- Left: Info & Per Page Selector -->
-    <div class="pagination-info">
-      <span>Showing <strong>{{ start_item }}-{{ end_item }}</strong> of <strong>{{ total_count }}</strong> items</span>
-      <span style="color: var(--border);">|</span>
-      <label>Items per page:</label>
-      <select onchange="updatePerPage(this.value)">
-        <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
-        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
-      </select>
-    </div>
-
-    <!-- Right: Page Navigation -->
-    <div class="pagination-controls">
-      {% if page > 1 %}
-        <a href="{{ build_url(page - 1) }}" class="page-btn">‹</a>
-      {% else %}
-        <span class="page-btn disabled">‹</span>
-      {% endif %}
-
-      {% for p in page_range %}
-        {% if p == '...' %}
-          <span class="page-btn ellipsis">...</span>
-        {% elif p == page %}
-          <span class="page-btn active">{{ p }}</span>
-        {% else %}
-          <a href="{{ build_url(p) }}" class="page-btn">{{ p }}</a>
-        {% endif %}
-      {% endfor %}
-
-      {% if page < total_pages %}
-        <a href="{{ build_url(page + 1) }}" class="page-btn">›</a>
-      {% else %}
-        <span class="page-btn disabled">›</span>
-      {% endif %}
-    </div>
   </div>
 </div>
 
@@ -889,7 +844,6 @@ function toggleRow(pk) {
 function updatePerPage(value) {
   const url = new URL(window.location.href);
   url.searchParams.set('per_page', value);
-  url.searchParams.set('page', '1'); // Reset to page 1
   window.location.href = url.toString();
 }
 
@@ -1028,5 +982,58 @@ document.getElementById('soldModal').addEventListener('click', (e) => {
     closeSoldModal();
   }
 });
+
+// Live Search Implementation - 3+ characters, 600ms debounce
+let searchTimeout;
+const liveSearchInput = document.getElementById('liveSearchInput');
+const searchHint = document.getElementById('searchHint');
+const searchStatus = document.getElementById('searchStatus');
+const MIN_SEARCH_LENGTH = 3;
+const DEBOUNCE_DELAY = 600; // ms
+
+if (liveSearchInput) {
+  liveSearchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    
+    const query = e.target.value.trim();
+    
+    // If less than 3 characters, show hint
+    if (query.length > 0 && query.length < MIN_SEARCH_LENGTH) {
+      searchHint.textContent = `Type ${MIN_SEARCH_LENGTH - query.length} more character(s) to search`;
+      searchHint.style.display = 'block';
+      searchStatus.style.display = 'none';
+      return;
+    }
+    
+    // If empty, clear search and reload
+    if (query.length === 0) {
+      searchHint.textContent = 'Type at least 3 characters to search';
+      searchHint.style.display = 'none';
+      searchStatus.style.display = 'none';
+      
+      // Only reload if there was a previous search query
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('q')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('q');
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+      }
+      return;
+    }
+    
+    // Show searching indicator
+    searchStatus.style.display = 'flex';
+    searchHint.style.display = 'none';
+    
+    // Wait 600ms after user stops typing
+    searchTimeout = setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', query);
+      url.searchParams.set('page', '1');
+      window.location.href = url.toString();
+    }, DEBOUNCE_DELAY);
+  });
+}
 </script>
 {% endblock %}
