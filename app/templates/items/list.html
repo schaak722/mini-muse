@@ -1,6 +1,49 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
+  /* Modern date input styling */
+  input[type="date"] {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input[type="date"]:hover {
+    border-color: var(--primary);
+  }
+
+  input[type="date"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+  }
+
+  /* Calendar icon */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  /* Table header styling - darker and bolder */
+  table th {
+    color: var(--text) !important;
+    font-weight: 700 !important;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
   /* Sold Modal Styles */
   .sold-modal-backdrop {
     display: none;
@@ -305,30 +348,51 @@
   }
 
   .comments-section {
-    margin-bottom: 16px;
+    width: 50%;
   }
 
-  .comments-box {
+  .comments-textarea {
+    width: 100%;
     background: #fff;
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 12px;
     font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
     color: var(--text);
-    min-height: 60px;
+    min-height: 80px;
     max-height: 120px;
-    overflow-y: auto;
+    resize: vertical;
+    transition: border-color 0.2s;
   }
 
-  .comments-box.empty {
+  .comments-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .comments-textarea::placeholder {
     color: var(--muted);
     font-style: italic;
   }
 
-  .actions-row {
+  .save-comments-btn {
+    margin-top: 8px;
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .row3-container {
     display: flex;
-    justify-content: flex-end;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .actions-col {
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+    justify-content: center;
   }
 
   .chevron-cell {
@@ -349,9 +413,35 @@
     transform: rotate(180deg);
   }
 
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  .pagination-info select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+  }
+
   @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .row3-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .comments-section {
+      width: 100%;
     }
   }
 
@@ -405,6 +495,18 @@
       </div>
     </form>
   </div>
+</div>
+
+<!-- Pagination Info -->
+<div class="pagination-info">
+  <span>Showing {{ items|length }} of {{ total_count }} items</span>
+  <span>|</span>
+  <label>Items per page:</label>
+  <select onchange="updatePerPage(this.value)">
+    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+  </select>
 </div>
 
 <div class="card">
@@ -493,15 +595,19 @@
                 </div>
               </div>
 
-              <!-- Row 3: Comments box and buttons -->
-              <div style="display: flex; gap: 16px; align-items: flex-start;">
-                <div class="comments-section" style="flex: 1;">
+              <!-- Row 3: Comments (left, 50%) and Buttons (right, center-aligned) -->
+              <div class="row3-container">
+                <div class="comments-section">
                   <div class="detail-label">Comments</div>
-                  <div class="comments-box {% if not i.comments %}empty{% endif %}">
-                    {{ i.comments or 'No comments' }}
-                  </div>
+                  <textarea 
+                    class="comments-textarea" 
+                    id="comments-{{ i.pk_id }}"
+                    placeholder="Add comments..."
+                    onblur="saveComments('{{ i.pk_id }}')"
+                  >{{ i.comments or '' }}</textarea>
+                  <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
                 </div>
-                <div class="actions-row" style="flex-shrink: 0;">
+                <div class="actions-col">
                   {% if i.status == 'IN_STOCK' %}
                     <button class="btn primary" type="button" 
                       onclick="event.stopPropagation(); openSoldModal(
@@ -513,9 +619,9 @@
                         '{{ i.size or '' }}',
                         '{{ i.net_unit_cost }}', 
                         '{{ i.freight_net }}'
-                      )">Mark as Sold</button>
+                      )">Mark Sold</button>
                   {% endif %}
-                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit Item</a>
+                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit</a>
                 </div>
               </div>
             </div>
@@ -664,6 +770,7 @@
 
 <script>
 let currentOpenRow = null;
+let saveTimeout = null;
 
 function toggleRow(pk) {
   const row = document.getElementById("row-" + pk);
@@ -689,6 +796,50 @@ function toggleRow(pk) {
     row.classList.add("show");
     chevron.classList.add("rotated");
     currentOpenRow = pk;
+  }
+}
+
+function updatePerPage(value) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', value);
+  window.location.href = url.toString();
+}
+
+async function saveComments(pk_id) {
+  const textarea = document.getElementById('comments-' + pk_id);
+  const statusDiv = document.getElementById('save-status-' + pk_id);
+  const comments = textarea.value.trim();
+  
+  // Clear any existing timeout
+  if (saveTimeout) clearTimeout(saveTimeout);
+  
+  statusDiv.textContent = 'Saving...';
+  statusDiv.style.color = 'var(--muted)';
+  
+  try {
+    const formData = new FormData();
+    formData.append('comments', comments);
+    
+    const response = await fetch(`/items/${pk_id}/update-comments`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (response.ok) {
+      statusDiv.textContent = 'Saved ✓';
+      statusDiv.style.color = 'var(--primary)';
+      
+      // Clear status after 2 seconds
+      saveTimeout = setTimeout(() => {
+        statusDiv.textContent = '';
+      }, 2000);
+    } else {
+      statusDiv.textContent = 'Error saving';
+      statusDiv.style.color = 'var(--danger)';
+    }
+  } catch (error) {
+    statusDiv.textContent = 'Error saving';
+    statusDiv.style.color = 'var(--danger)';
   }
 }
 
