@@ -459,6 +459,70 @@
     font-family: 'Open Sans', sans-serif;
   }
 
+  /* Pagination Container at bottom */
+  .pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: #fafbfb;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .pagination-container .pagination-info {
+    margin-bottom: 0;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .page-btn:hover:not(.disabled):not(.ellipsis) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .page-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  .page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .page-btn.ellipsis {
+    border: none;
+    background: none;
+    cursor: default;
+    pointer-events: none;
+  }
+
   @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
@@ -537,18 +601,6 @@
       </div>
     </form>
   </div>
-</div>
-
-<!-- Pagination Info -->
-<div class="pagination-info">
-  <span>Showing {{ items|length }} of {{ total_count }} items</span>
-  <span>|</span>
-  <label>Items per page:</label>
-  <select onchange="updatePerPage(this.value)">
-    <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
-    <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
-    <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
-  </select>
 </div>
 
 <div class="card">
@@ -681,6 +733,46 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Pagination at Bottom -->
+  {% if total_count > 0 %}
+  <div class="pagination-container">
+    <div class="pagination-info">
+      <span>Showing <strong>{{ start_item }}-{{ end_item }}</strong> of <strong>{{ total_count }}</strong> items</span>
+      <span style="color: var(--border);">|</span>
+      <label>Items per page:</label>
+      <select onchange="updatePerPage(this.value)">
+        <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+      </select>
+    </div>
+
+    <div class="pagination-controls">
+      {% if page > 1 %}
+        <a href="{{ build_url(page - 1) }}" class="page-btn">‹</a>
+      {% else %}
+        <span class="page-btn disabled">‹</span>
+      {% endif %}
+
+      {% for p in page_range %}
+        {% if p == '...' %}
+          <span class="page-btn ellipsis">...</span>
+        {% elif p == page %}
+          <span class="page-btn active">{{ p }}</span>
+        {% else %}
+          <a href="{{ build_url(p) }}" class="page-btn">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a href="{{ build_url(page + 1) }}" class="page-btn">›</a>
+      {% else %}
+        <span class="page-btn disabled">›</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Sold Modal -->
