@@ -446,10 +446,6 @@
     font-weight: 500;
   }
 
-  .comments-section {
-    width: 50%;
-  }
-
   .comments-textarea {
     width: 100%;
     background: #fff;
@@ -475,19 +471,6 @@
     font-style: italic;
   }
 
-  .row3-container {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-  }
-
-  .actions-col {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    justify-content: center;
-  }
-
   .chevron-cell {
     width: 40px;
     text-align: center;
@@ -509,15 +492,6 @@
   @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .row3-container {
-      flex-direction: column;
-      align-items: stretch;
-    }
-    
-    .comments-section {
-      width: 100%;
     }
   }
 
@@ -634,8 +608,8 @@
                 </div>
               </div>
 
-              <!-- Row 2: Net Unit Cost, Freight, VAT, Status -->
-              <div class="detail-grid">
+              <!-- Row 2: Net Unit Cost, Freight, VAT, Status + Buttons -->
+              <div class="detail-grid" style="position: relative;">
                 <div class="detail-item">
                   <div class="detail-label">Net Unit Cost</div>
                   <div class="detail-value">€{{ i.net_unit_cost }}</div>
@@ -658,21 +632,10 @@
                     {% endif %}
                   </div>
                 </div>
-              </div>
-
-              <!-- Row 3: Comments (left, 50%) and Buttons (right, center-aligned) -->
-              <div class="row3-container">
-                <div class="comments-section">
-                  <div class="detail-label">Comments</div>
-                  <textarea 
-                    class="comments-textarea" 
-                    id="comments-{{ i.pk_id }}"
-                    placeholder="Add comments..."
-                    onblur="saveComments('{{ i.pk_id }}')"
-                  >{{ i.comments or '' }}</textarea>
-                  <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
-                </div>
-                <div class="actions-col">
+                
+                <!-- Action Buttons - Right Side -->
+                <div style="position: absolute; right: 0; top: 0; display: flex; flex-direction: column; gap: 10px;">
+                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit</a>
                   {% if i.status == 'IN_STOCK' %}
                     <button class="btn primary" type="button" 
                       onclick="event.stopPropagation(); openSoldModal(
@@ -686,8 +649,20 @@
                         '{{ i.freight_net }}'
                       )">Mark Sold</button>
                   {% endif %}
-                  <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit</a>
                 </div>
+              </div>
+
+              <!-- Row 3: Comments Only -->
+              <div style="margin-top: 16px;">
+                <div class="detail-label">Comments</div>
+                <textarea 
+                  class="comments-textarea" 
+                  id="comments-{{ i.pk_id }}"
+                  placeholder="Add comments..."
+                  onblur="saveComments('{{ i.pk_id }}')"
+                  style="width: 100%;"
+                >{{ i.comments or '' }}</textarea>
+                <div id="save-status-{{ i.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
               </div>
             </div>
           </td>
