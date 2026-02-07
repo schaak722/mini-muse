@@ -44,6 +44,35 @@
     font-weight: 600;
   }
 
+  /* Live Search Styles */
+  .search-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .search-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   /* Pagination Container */
   .pagination-container {
     display: flex;
@@ -351,7 +380,20 @@
 
       <div class="field" style="min-width:340px; flex:1;">
         <label>Search (SKU, Brand, Description)</label>
-        <input name="q" value="{{ q or '' }}" placeholder="Search sales...">
+        <input 
+          id="liveSearchInput" 
+          name="q" 
+          value="{{ q or '' }}" 
+          placeholder="Type at least 3 characters..."
+          autocomplete="off"
+        >
+        <div class="search-hint" id="searchHint" style="display: {% if q and q|length < 3 %}block{% else %}none{% endif %};">
+          Type at least 3 characters to search
+        </div>
+        <div class="search-status" id="searchStatus" style="display: none;">
+          <div class="spinner"></div>
+          <span>Searching...</span>
+        </div>
       </div>
 
       <div class="field" style="width: 140px;">
@@ -849,5 +891,58 @@ document.getElementById('editModal').addEventListener('click', (e) => {
 document.getElementById('reverseModal').addEventListener('click', (e) => {
   if (e.target.id === 'reverseModal') closeReverseModal();
 });
+
+// Live Search Implementation - 3+ characters, 600ms debounce
+let searchTimeout;
+const liveSearchInput = document.getElementById('liveSearchInput');
+const searchHint = document.getElementById('searchHint');
+const searchStatus = document.getElementById('searchStatus');
+const MIN_SEARCH_LENGTH = 3;
+const DEBOUNCE_DELAY = 600; // ms
+
+if (liveSearchInput) {
+  liveSearchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    
+    const query = e.target.value.trim();
+    
+    // If less than 3 characters, show hint
+    if (query.length > 0 && query.length < MIN_SEARCH_LENGTH) {
+      searchHint.textContent = `Type ${MIN_SEARCH_LENGTH - query.length} more character(s) to search`;
+      searchHint.style.display = 'block';
+      searchStatus.style.display = 'none';
+      return;
+    }
+    
+    // If empty, clear search and reload
+    if (query.length === 0) {
+      searchHint.textContent = 'Type at least 3 characters to search';
+      searchHint.style.display = 'none';
+      searchStatus.style.display = 'none';
+      
+      // Only reload if there was a previous search query
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('q')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('q');
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+      }
+      return;
+    }
+    
+    // Show searching indicator
+    searchStatus.style.display = 'flex';
+    searchHint.style.display = 'none';
+    
+    // Wait 600ms after user stops typing
+    searchTimeout = setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', query);
+      url.searchParams.set('page', '1');
+      window.location.href = url.toString();
+    }, DEBOUNCE_DELAY);
+  });
+}
 </script>
 {% endblock %}
