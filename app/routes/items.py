@@ -31,6 +31,11 @@ def items_list():
     date_type = request.args.get("date_type", "arrival")
     date_from = (request.args.get("date_from") or "").strip()
     date_to = (request.args.get("date_to") or "").strip()
+    
+    # Pagination
+    per_page = int(request.args.get("per_page", 25))
+    if per_page not in [25, 50, 100]:
+        per_page = 25
 
     # Inventory page = IN_STOCK only (per spec)
     query = db.session.query(Item).filter(Item.status == "IN_STOCK")
@@ -49,18 +54,22 @@ def items_list():
         )
 
     # Date range based on selected type
-    if date_type == "order":
-        if date_from:
-            query = query.filter(Item.order_date >= date_from)
-        if date_to:
-            query = query.filter(Item.order_date <= date_to)
-    else:  # arrival
-        if date_from:
-            query = query.filter(Item.arrival_date >= date_from)
-        if date_to:
-            query = query.filter(Item.arrival_date <= date_to)
+    try:
+        if date_type == "order":
+            if date_from:
+                query = query.filter(Item.order_date >= date_from)
+            if date_to:
+                query = query.filter(Item.order_date <= date_to)
+        else:  # arrival
+            if date_from:
+                query = query.filter(Item.arrival_date >= date_from)
+            if date_to:
+                query = query.filter(Item.arrival_date <= date_to)
+    except Exception as e:
+        flash(f"Invalid date format. Please use the date picker.", "error")
 
-    items = query.order_by(Item.arrival_date.desc()).limit(500).all()
+    items = query.order_by(Item.arrival_date.desc()).limit(per_page).all()
+    total_count = query.count()
 
     return render_template(
         "items/list.html",
@@ -70,6 +79,8 @@ def items_list():
         date_type=date_type,
         date_from=date_from,
         date_to=date_to,
+        per_page=per_page,
+        total_count=total_count,
     )
 
 @routes_bp.get("/items/new")
@@ -158,3 +169,23 @@ def items_update(pk_id):
     db.session.commit()
     flash("Item updated.", "ok")
     return redirect(url_for("routes.items_list"))
+
+
+@routes_bp.post("/items/<pk_id>/update-comments")
+@login_required
+def items_update_comments(pk_id):
+    """Update item comments via AJAX"""
+    i = db.session.get(Item, pk_id)
+    if not i:
+        return {"error": "Item not found"}, 404
+    
+    comments = request.form.get("comments", "").strip()
+    old_comments = i.comments
+    i.comments = comments if comments else None
+    
+    if old_comments != i.comments:
+        audit("ITEM", i.pk_id, "UPDATE", field="comments", old=old_comments, new=i.comments)
+    
+    db.session.commit()
+    return {"success": True, "comments": i.comments or ""}
+
