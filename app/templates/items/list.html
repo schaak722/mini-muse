@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-  /* Modal Styles */
+  /* Sold Modal Styles */
   .sold-modal-backdrop {
     display: none;
     position: fixed;
@@ -71,8 +71,8 @@
   }
 
   .sold-item-card {
-    background: linear-gradient(135deg, #eef7f3 0%, #e5f4ef 100%);
-    border: 1px solid #bfe8cf;
+    background: linear-gradient(135deg, #fdf5f3 0%, #fceee9 100%);
+    border: 1px solid #f5d4cb;
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 24px;
@@ -264,54 +264,115 @@
       flex-direction: column;
     }
   }
+
+  /* Expanded row styles */
+  .expanded-row {
+    display: none;
+  }
+
+  .expanded-row.show {
+    display: table-row;
+  }
+
+  .expanded-content {
+    background: #fafbfb;
+    padding: 16px;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px 24px;
+    margin-bottom: 16px;
+  }
+
+  .detail-item {
+    font-size: 13px;
+  }
+
+  .detail-label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .detail-value {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .chevron-cell {
+    width: 40px;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .chevron-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    transition: transform 0.2s;
+  }
+
+  .chevron-btn.rotated {
+    transform: rotate(180deg);
+  }
+
+  @media (max-width: 768px) {
+    .detail-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 480px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
 
-<div class="topbar">
-  <div>
-    <h1 class="h1">Inventory</h1>
-    <div class="sub">Arrived stock (IN_STOCK items). Mark items as sold from this page.</div>
-  </div>
-</div>
-
+<!-- Search & Filters - NO TITLE -->
 <div class="card" style="margin-bottom:14px;">
   <div class="card-body">
     <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
 
       <div class="field" style="min-width:340px; flex:1;">
-        <label>Search (SKU, Order #, Supplier, Brand, Description)</label>
-        <input name="q" value="{{ q or '' }}" placeholder="e.g. SR-PRZE or PO-123 or MayLily">
+        <label>Search (SKU, Brand, Description)</label>
+        <input name="q" value="{{ q or '' }}" placeholder="Search items...">
       </div>
 
-      <div class="field">
-        <label>Order date from</label>
-        <input type="date" name="order_from" value="{{ order_from or '' }}">
-      </div>
-      <div class="field">
-        <label>Order date to</label>
-        <input type="date" name="order_to" value="{{ order_to or '' }}">
-      </div>
-
-      <div class="field">
-        <label>Arrival from</label>
-        <input type="date" name="arrival_from" value="{{ arrival_from or '' }}">
-      </div>
-      <div class="field">
-        <label>Arrival to</label>
-        <input type="date" name="arrival_to" value="{{ arrival_to or '' }}">
+      <div class="field" style="width: 160px;">
+        <label>Date Type</label>
+        <select name="date_type" id="date_type">
+          <option value="order" {% if date_type=='order' %}selected{% endif %}>Order Date</option>
+          <option value="arrival" {% if date_type=='arrival' or not date_type %}selected{% endif %}>Arrival Date</option>
+        </select>
       </div>
 
-      <div style="display:flex; gap:10px; align-items:center;">
-        <button class="btn primary" type="submit">Apply</button>
-        <a class="btn" href="{{ url_for('routes.items_list') }}">Reset</a>
+      <div class="field" style="width: 140px;">
+        <label>From</label>
+        <input type="date" name="date_from" value="{{ date_from or '' }}">
+      </div>
 
-        <div style="position:relative;">
-          <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
-          <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
-            <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
-              <a href="{{ url_for('routes.imports_new') }}">Import Order (CSV)</a>
-              <a href="#" onclick="alert('Export list coming in next phase'); return false;">Export list</a>
-              <a href="{{ url_for('routes.items_new') }}">Manual input item</a>
-            </div>
+      <div class="field" style="width: 140px;">
+        <label>To</label>
+        <input type="date" name="date_to" value="{{ date_to or '' }}">
+      </div>
+
+      <button class="btn primary" type="submit">Apply</button>
+      <a class="btn" href="{{ url_for('routes.items_list') }}">Reset</a>
+
+      <div style="position:relative;">
+        <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
+        <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
+          <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
+            <a href="{{ url_for('routes.imports_new') }}">Import Order (CSV)</a>
+            <a href="#" onclick="alert('Export list coming in next phase'); return false;">Export list</a>
+            <a href="{{ url_for('routes.items_new') }}">Manual input item</a>
           </div>
         </div>
       </div>
@@ -328,75 +389,82 @@
     <table>
       <thead>
         <tr>
-          <th style="width:38px;"></th>
           <th>SKU</th>
-          <th>Description</th>
-          <th>Supplier</th>
+          <th>Item Description</th>
+          <th>Colour</th>
+          <th>Size</th>
           <th>Brand</th>
-          <th>Order #</th>
-          <th>Order date</th>
-          <th>Arrival</th>
-          <th>Net cost</th>
-          <th>Freight</th>
-          <th style="text-align:right;">Actions</th>
+          <th>Arrival Date</th>
+          <th>RRP</th>
+          <th class="chevron-cell"></th>
         </tr>
       </thead>
       <tbody>
         {% for i in items %}
-        <tr>
-          <td>
-            <button class="btn" type="button" style="padding:6px 8px;" onclick="toggleRow('{{ i.pk_id }}')">▸</button>
-          </td>
+        <tr onclick="toggleRow('{{ i.pk_id }}')" style="cursor: pointer;">
           <td>{{ i.sku }}</td>
           <td>{{ i.item_description }}</td>
-          <td>{{ i.company_name }}</td>
+          <td>{{ i.colour or '-' }}</td>
+          <td>{{ i.size or '-' }}</td>
           <td>{{ i.brand }}</td>
-          <td>{{ i.order_number }}</td>
-          <td>{{ i.order_date }}</td>
           <td>{{ i.arrival_date }}</td>
-          <td>€{{ i.net_unit_cost }}</td>
-          <td>€{{ i.freight_net }}</td>
-          <td style="text-align:right;">
-            {% if i.status == 'IN_STOCK' %}
-              <button class="btn primary" type="button" 
-                onclick="openSoldModal(
-                  '{{ i.pk_id }}', 
-                  '{{ i.item_description }}', 
-                  '{{ i.brand }}', 
-                  '{{ i.sku }}', 
-                  '{{ i.colour or '' }}',
-                  '{{ i.size or '' }}',
-                  '{{ i.net_unit_cost }}', 
-                  '{{ i.freight_net }}'
-                )">Sold</button>
-            {% else %}
-              <span class="badge gray">SOLD</span>
-            {% endif %}
+          <td>€{{ ((i.net_unit_cost + i.freight_net) * (1 + i.vat_rate) * 2) | round(2) }}</td>
+          <td class="chevron-cell">
+            <span class="chevron-btn" id="chevron-{{ i.pk_id }}">▼</span>
           </td>
         </tr>
 
         <!-- Expanded row -->
-        <tr id="row-{{ i.pk_id }}" style="display:none;">
-          <td colspan="11" style="background:#fafbfb;">
-            <div class="grid cols-2" style="padding:12px;">
-              <div><b>Internal Item ID:</b> {{ i.user_item_id }}</div>
-              <div><b>VAT rate:</b> {{ i.vat_rate }}</div>
-              {% if i.colour %}
-              <div><b>Colour:</b> {{ i.colour }}</div>
-              {% endif %}
-              {% if i.size %}
-              <div><b>Size:</b> {{ i.size }}</div>
-              {% endif %}
-              <div><b>Status:</b>
-                {% if i.status == 'IN_STOCK' %}
-                  <span class="badge green">IN_STOCK</span>
-                {% else %}
-                  <span class="badge gray">SOLD</span>
-                {% endif %}
+        <tr class="expanded-row" id="row-{{ i.pk_id }}">
+          <td colspan="8">
+            <div class="expanded-content">
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <div class="detail-label">Supplier</div>
+                  <div class="detail-value">{{ i.company_name }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Order Number</div>
+                  <div class="detail-value">{{ i.order_number }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Order Date</div>
+                  <div class="detail-value">{{ i.order_date }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Net Unit Cost</div>
+                  <div class="detail-value">€{{ i.net_unit_cost }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Freight</div>
+                  <div class="detail-value">€{{ i.freight_net }}</div>
+                </div>
+                <div class="detail-item">
+                  <div class="detail-label">Status</div>
+                  <div class="detail-value">
+                    {% if i.status == 'IN_STOCK' %}
+                      <span class="badge" style="background: var(--primary-light); color: var(--primary-dark);">IN STOCK</span>
+                    {% else %}
+                      <span class="badge gray">SOLD</span>
+                    {% endif %}
+                  </div>
+                </div>
               </div>
-              <div><b>DB PK:</b> {{ i.pk_id }}</div>
-              <div style="grid-column:1 / -1;">
-                <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}">Edit item</a>
+              <div style="display: flex; gap: 10px;">
+                {% if i.status == 'IN_STOCK' %}
+                  <button class="btn primary" type="button" 
+                    onclick="event.stopPropagation(); openSoldModal(
+                      '{{ i.pk_id }}', 
+                      '{{ i.item_description }}', 
+                      '{{ i.brand }}', 
+                      '{{ i.sku }}', 
+                      '{{ i.colour or '' }}',
+                      '{{ i.size or '' }}',
+                      '{{ i.net_unit_cost }}', 
+                      '{{ i.freight_net }}'
+                    )">Mark as Sold</button>
+                {% endif %}
+                <a class="btn" href="{{ url_for('routes.items_edit', pk_id=i.pk_id) }}" onclick="event.stopPropagation();">Edit Item</a>
               </div>
             </div>
           </td>
@@ -405,7 +473,7 @@
 
         {% if not items %}
         <tr>
-          <td colspan="11" style="color: var(--muted);">
+          <td colspan="8" style="color: var(--muted); text-align: center; padding: 40px;">
             No items found. Try changing filters or import an order CSV.
           </td>
         </tr>
@@ -543,10 +611,33 @@
 </div>
 
 <script>
-function toggleRow(pk){
-  const tr = document.getElementById("row-" + pk);
-  if (!tr) return;
-  tr.style.display = (tr.style.display === "none" || !tr.style.display) ? "table-row" : "none";
+let currentOpenRow = null;
+
+function toggleRow(pk) {
+  const row = document.getElementById("row-" + pk);
+  const chevron = document.getElementById("chevron-" + pk);
+  
+  if (!row) return;
+  
+  // Close currently open row if it's different
+  if (currentOpenRow && currentOpenRow !== pk) {
+    const prevRow = document.getElementById("row-" + currentOpenRow);
+    const prevChevron = document.getElementById("chevron-" + currentOpenRow);
+    if (prevRow) prevRow.classList.remove("show");
+    if (prevChevron) prevChevron.classList.remove("rotated");
+  }
+  
+  // Toggle current row
+  const isOpen = row.classList.contains("show");
+  if (isOpen) {
+    row.classList.remove("show");
+    chevron.classList.remove("rotated");
+    currentOpenRow = null;
+  } else {
+    row.classList.add("show");
+    chevron.classList.add("rotated");
+    currentOpenRow = pk;
+  }
 }
 
 function toggleMoreActions(){
