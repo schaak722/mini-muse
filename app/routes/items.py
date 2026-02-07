@@ -26,6 +26,8 @@ def audit(entity_type, entity_pk_id, action, field=None, old=None, new=None, rea
 @routes_bp.get("/items")
 @login_required
 def items_list():
+    from datetime import datetime
+    
     q = (request.args.get("q") or "").strip()
 
     date_type = request.args.get("date_type", "arrival")
@@ -53,19 +55,23 @@ def items_list():
             )
         )
 
-    # Date range based on selected type
+    # Date range based on selected type - convert strings to date objects
     try:
         if date_type == "order":
             if date_from:
-                query = query.filter(Item.order_date >= date_from)
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                query = query.filter(Item.order_date >= date_from_obj)
             if date_to:
-                query = query.filter(Item.order_date <= date_to)
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                query = query.filter(Item.order_date <= date_to_obj)
         else:  # arrival
             if date_from:
-                query = query.filter(Item.arrival_date >= date_from)
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                query = query.filter(Item.arrival_date >= date_from_obj)
             if date_to:
-                query = query.filter(Item.arrival_date <= date_to)
-    except Exception as e:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                query = query.filter(Item.arrival_date <= date_to_obj)
+    except ValueError as e:
         flash(f"Invalid date format. Please use the date picker.", "error")
 
     items = query.order_by(Item.arrival_date.desc()).limit(per_page).all()
