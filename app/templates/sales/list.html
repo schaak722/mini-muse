@@ -475,7 +475,7 @@
       <div style="position:relative;">
         <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
         <div id="moreActionsMenu" class="more-actions-dropdown">
-          <a href="#" class="dropdown-item" onclick="alert('Export list coming in next phase'); return false;">
+          <a href="#" class="dropdown-item" onclick="mmAlert('Export list coming in next phase', 'info'); return false;">
             <span class="dropdown-icon">📤</span>
             <span>Export list</span>
           </a>
@@ -883,13 +883,13 @@ async function submitEditForm() {
     const data = await response.json();
     
     if (response.ok) {
-      alert('Sale updated successfully!');
+      await mmAlert('Sale updated successfully!', 'success');
       window.location.reload();
     } else {
-      alert('Error: ' + (data.error || 'Failed to update sale'));
+      await mmAlert('Error: ' + (data.error || 'Failed to update sale'), 'error');
     }
   } catch (error) {
-    alert('Error: ' + error.message);
+    await mmAlert('Error: ' + error.message, 'error');
   }
 }
 
@@ -923,11 +923,17 @@ async function submitReverseForm() {
   const formData = new FormData(form);
   
   if (!formData.get('reason')) {
-    alert('Please provide a reason for reversal');
+    await mmAlert('Please provide a reason for reversal', 'warning');
     return;
   }
   
-  if (!confirm('Are you absolutely sure? This will delete the sale and return the item to inventory.')) {
+  const confirmed = await mmConfirm(
+    '⚠️ Confirm Reversal',
+    'Are you absolutely sure? This will delete the sale and return the item to inventory.',
+    { danger: true, confirmText: 'Yes, Reverse Sale', cancelText: 'Cancel' }
+  );
+  
+  if (!confirmed) {
     return;
   }
   
@@ -940,13 +946,13 @@ async function submitReverseForm() {
     const data = await response.json();
     
     if (response.ok) {
-      alert('Sale reversed successfully!');
+      await mmAlert('Sale reversed successfully!', 'success');
       window.location.reload();
     } else {
-      alert('Error: ' + (data.error || 'Failed to reverse sale'));
+      await mmAlert('Error: ' + (data.error || 'Failed to reverse sale'), 'error');
     }
   } catch (error) {
-    alert('Error: ' + error.message);
+    await mmAlert('Error: ' + error.message, 'error');
   }
 }
 
