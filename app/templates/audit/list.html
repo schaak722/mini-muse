@@ -1,5 +1,123 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  /* Live Search Styles */
+  .search-hint {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .search-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Table header styling */
+  table th {
+    color: var(--text) !important;
+    font-weight: 700 !important;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Pagination Container */
+  .pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: #fafbfb;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .pagination-info select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+    background: white;
+    cursor: pointer;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .page-btn:hover:not(.disabled):not(.ellipsis) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .page-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  .page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .page-btn.ellipsis {
+    border: none;
+    background: none;
+    cursor: default;
+    pointer-events: none;
+  }
+</style>
+
 <div class="topbar">
   <div>
     <h1 class="h1">Audit Log</h1>
@@ -7,54 +125,178 @@
   </div>
 </div>
 
-<div class="card">
+<!-- Search Bar -->
+<div class="card" style="margin-bottom:14px;">
   <div class="card-body">
-    <form method="get" class="form" style="margin-bottom:12px;">
-      <div class="grid cols-2">
-        <div class="field">
-          <label>Entity Type (ITEM / SALE / IMPORT_BATCH)</label>
-          <input name="entity_type" value="{{ entity_type }}" placeholder="ITEM">
-        </div>
-        <div class="field">
-          <label>Entity PK ID</label>
-          <input name="entity_pk_id" value="{{ entity_pk_id }}" placeholder="Paste PK ID">
-        </div>
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn primary" type="submit">Filter</button>
-        <a class="btn" href="{{ url_for('routes.audit_list') }}">Clear</a>
-      </div>
-    </form>
+    <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <input type="hidden" name="page" value="1">
 
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Entity</th>
-            <th>Action</th>
-            <th>Field</th>
-            <th>Old</th>
-            <th>New</th>
-            <th>Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for a in logs %}
-          <tr>
-            <td>{{ a.created_at }}</td>
-            <td>{{ a.entity_type }} / {{ a.entity_pk_id }}</td>
-            <td>{{ a.action }}</td>
-            <td>{{ a.field_name or "" }}</td>
-            <td>{{ a.old_value or "" }}</td>
-            <td>{{ a.new_value or "" }}</td>
-            <td>{{ a.reason or "" }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+      <div class="field" style="min-width:340px; flex:1;">
+        <label>Search (Internal ID, Item Description, Batch Number, User)</label>
+        <input 
+          id="liveSearchInput" 
+          name="q" 
+          value="{{ q or '' }}" 
+          placeholder="Type at least 3 characters..."
+          autocomplete="off"
+        >
+        <div class="search-hint" id="searchHint" style="display: {% if q and q|length < 3 %}block{% else %}none{% endif %};">
+          Type at least 3 characters to search
+        </div>
+        <div class="search-status" id="searchStatus" style="display: none;">
+          <div class="spinner"></div>
+          <span>Searching...</span>
+        </div>
+      </div>
+
+      <button class="btn primary" type="submit">Apply</button>
+      <a class="btn" href="{{ url_for('routes.audit_list') }}">Reset</a>
+    </form>
   </div>
 </div>
-{% endblock %}
 
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Audit Log Entries</div>
+  </div>
+
+  <div class="card-body table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Item Description</th>
+          <th>Action</th>
+          <th>Field</th>
+          <th>New</th>
+          <th>Reason</th>
+          <th>User</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in logs %}
+        <tr>
+          <td>{{ a.created_at.strftime('%d-%m-%Y %H:%M') if a.created_at else '-' }}</td>
+          <td>{{ a.item_description or '-' }}</td>
+          <td>{{ a.action }}</td>
+          <td>{{ a.field_name or '-' }}</td>
+          <td>{{ a.new_value or '-' }}</td>
+          <td>{{ a.reason or '-' }}</td>
+          <td>{{ a.user_email or '-' }}</td>
+        </tr>
+        {% endfor %}
+
+        {% if not logs %}
+        <tr>
+          <td colspan="7" style="color: var(--muted); text-align: center; padding: 40px;">
+            No audit log entries found.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination at Bottom -->
+  {% if total_count > 0 %}
+  <div class="pagination-container">
+    <div class="pagination-info">
+      <span>Showing <strong>{{ start_item }}-{{ end_item }}</strong> of <strong>{{ total_count }}</strong> items</span>
+      <span style="color: var(--border);">|</span>
+      <label>Items per page:</label>
+      <select onchange="updatePerPage(this.value)">
+        <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+      </select>
+    </div>
+
+    <div class="pagination-controls">
+      {% if page > 1 %}
+        <a href="{{ build_url(page - 1) }}" class="page-btn">‹</a>
+      {% else %}
+        <span class="page-btn disabled">‹</span>
+      {% endif %}
+
+      {% for p in page_range %}
+        {% if p == '...' %}
+          <span class="page-btn ellipsis">...</span>
+        {% elif p == page %}
+          <span class="page-btn active">{{ p }}</span>
+        {% else %}
+          <a href="{{ build_url(p) }}" class="page-btn">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a href="{{ build_url(page + 1) }}" class="page-btn">›</a>
+      {% else %}
+        <span class="page-btn disabled">›</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function updatePerPage(value) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', value);
+  url.searchParams.set('page', '1');
+  window.location.href = url.toString();
+}
+
+// Live Search Implementation - 3+ characters, 600ms debounce
+let searchTimeout;
+const liveSearchInput = document.getElementById('liveSearchInput');
+const searchHint = document.getElementById('searchHint');
+const searchStatus = document.getElementById('searchStatus');
+const MIN_SEARCH_LENGTH = 3;
+const DEBOUNCE_DELAY = 600; // ms
+
+if (liveSearchInput) {
+  liveSearchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
+    
+    const query = e.target.value.trim();
+    
+    // If less than 3 characters, show hint
+    if (query.length > 0 && query.length < MIN_SEARCH_LENGTH) {
+      searchHint.textContent = `Type ${MIN_SEARCH_LENGTH - query.length} more character(s) to search`;
+      searchHint.style.display = 'block';
+      searchStatus.style.display = 'none';
+      return;
+    }
+    
+    // If empty, clear search and reload
+    if (query.length === 0) {
+      searchHint.textContent = 'Type at least 3 characters to search';
+      searchHint.style.display = 'none';
+      searchStatus.style.display = 'none';
+      
+      // Only reload if there was a previous search query
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('q')) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('q');
+        url.searchParams.set('page', '1');
+        window.location.href = url.toString();
+      }
+      return;
+    }
+    
+    // Show searching indicator
+    searchStatus.style.display = 'flex';
+    searchHint.style.display = 'none';
+    
+    // Wait 600ms after user stops typing
+    searchTimeout = setTimeout(() => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('q', query);
+      url.searchParams.set('page', '1');
+      window.location.href = url.toString();
+    }, DEBOUNCE_DELAY);
+  });
+}
+</script>
+{% endblock %}
