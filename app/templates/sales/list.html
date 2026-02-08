@@ -560,8 +560,8 @@
                 <div style="display: flex; flex-direction: column;">
                   <div style="height: 24px;"></div> <!-- Spacer for label -->
                   <div style="display: flex; flex-direction: column; justify-content: space-between; height: 80px;">
-                    <button class="btn primary" type="button" onclick="event.stopPropagation(); openEditModal('{{ i.sale.pk_id }}', '{{ i.sale.sale_date.isoformat() }}', '{{ i.sale.item_selling_price_gross }}', '{{ i.sale.packaging_net }}', '{{ i.sale.delivery_cost_net }}', '{{ i.sale.other_cost_net }}', '{{ i.sale.delivery_fee_charged_gross }}', '{{ i.sale.discount_type or '' }}', '{{ i.sale.discount_value or '' }}', {{ i.sale.notes | tojson }})">Edit Sale</button>
-                    <button class="btn" type="button" style="background: var(--danger); border-color: var(--danger); color: white;" onclick="event.stopPropagation(); openReverseModal('{{ i.sale.pk_id }}', '{{ i.user_item_id }}', '{{ i.item_description }}')">Reverse Sale</button>
+                    <button class="btn primary" type="button" onclick="event.stopPropagation(); event.preventDefault(); openEditModal('{{ i.sale.pk_id }}', '{{ i.sale.sale_date.isoformat() }}', '{{ i.sale.item_selling_price_gross }}', '{{ i.sale.packaging_net }}', '{{ i.sale.delivery_cost_net }}', '{{ i.sale.other_cost_net }}', '{{ i.sale.delivery_fee_charged_gross }}', '{{ i.sale.discount_type or '' }}', '{{ i.sale.discount_value or '' }}', {{ i.sale.notes | tojson }})">Edit Sale</button>
+                    <button class="btn" type="button" style="background: var(--danger); border-color: var(--danger); color: white;" onclick="event.stopPropagation(); event.preventDefault(); openReverseModal('{{ i.sale.pk_id }}', '{{ i.user_item_id }}', '{{ i.item_description }}')">Reverse Sale</button>
                   </div>
                 </div>
               </div>
@@ -787,18 +787,28 @@ document.addEventListener("click", (e) => {
 
 // Edit Modal
 function openEditModal(sale_pk, sale_date, selling_price, packaging, delivery_cost, other_cost, delivery_fee, discount_type, discount_value, notes) {
-  document.getElementById('edit_sale_id').value = sale_pk;
-  document.getElementById('edit_sale_date').value = sale_date;
-  document.getElementById('edit_selling_price').value = selling_price;
-  document.getElementById('edit_packaging').value = packaging;
-  document.getElementById('edit_delivery_cost').value = delivery_cost;
-  document.getElementById('edit_other_cost').value = other_cost;
-  document.getElementById('edit_delivery_fee').value = delivery_fee;
-  document.getElementById('edit_discount_type').value = discount_type || '';
-  document.getElementById('edit_discount_value').value = discount_value || '';
-  document.getElementById('edit_notes').value = notes || '';
+  const modal = document.getElementById('editModal');
   
-  document.getElementById('editModal').classList.add('active');
+  // Force close first to ensure clean state
+  modal.classList.remove('active');
+  
+  // Small delay to ensure modal fully resets
+  setTimeout(() => {
+    // Set all form values
+    document.getElementById('edit_sale_id').value = sale_pk;
+    document.getElementById('edit_sale_date').value = sale_date;
+    document.getElementById('edit_selling_price').value = selling_price;
+    document.getElementById('edit_packaging').value = packaging;
+    document.getElementById('edit_delivery_cost').value = delivery_cost;
+    document.getElementById('edit_other_cost').value = other_cost;
+    document.getElementById('edit_delivery_fee').value = delivery_fee;
+    document.getElementById('edit_discount_type').value = discount_type || '';
+    document.getElementById('edit_discount_value').value = discount_value || '';
+    document.getElementById('edit_notes').value = notes || '';
+    
+    // Now open modal
+    modal.classList.add('active');
+  }, 10);
 }
 
 function closeEditModal() {
@@ -831,12 +841,22 @@ async function submitEditForm() {
 
 // Reverse Modal
 function openReverseModal(sale_pk, item_id, item_desc) {
-  document.getElementById('reverse_sale_id').value = sale_pk;
-  document.getElementById('reverse_item_id').textContent = item_id;
-  document.getElementById('reverse_item_desc').textContent = item_desc;
-  document.getElementById('reverse_reason').value = '';
+  const modal = document.getElementById('reverseModal');
   
-  document.getElementById('reverseModal').classList.add('active');
+  // Force close first to ensure clean state
+  modal.classList.remove('active');
+  
+  // Small delay to ensure modal fully resets
+  setTimeout(() => {
+    // Set all form values
+    document.getElementById('reverse_sale_id').value = sale_pk;
+    document.getElementById('reverse_item_id').textContent = item_id;
+    document.getElementById('reverse_item_desc').textContent = item_desc;
+    document.getElementById('reverse_reason').value = '';
+    
+    // Now open modal
+    modal.classList.add('active');
+  }, 10);
 }
 
 function closeReverseModal() {
