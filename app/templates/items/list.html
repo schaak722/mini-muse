@@ -510,6 +510,60 @@
     pointer-events: none;
   }
 
+  /* More Actions Menu Styling */
+  .more-actions-dropdown {
+    position: absolute;
+    right: 0;
+    top: 42px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(22,29,37,.12);
+    min-width: 240px;
+    z-index: 50;
+    overflow: hidden;
+    display: none;
+  }
+
+  .more-actions-dropdown.active {
+    display: block;
+  }
+
+  .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+
+  .dropdown-item:hover {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+  }
+
+  .dropdown-icon {
+    color: var(--primary);
+    font-size: 18px;
+    width: 20px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .dropdown-item:hover .dropdown-icon {
+    color: var(--primary-dark);
+  }
+
   @media (max-width: 1024px) {
     .detail-grid {
       grid-template-columns: repeat(2, 1fr);
@@ -578,12 +632,19 @@
 
       <div style="position:relative;">
         <button class="btn" type="button" onclick="toggleMoreActions()">More actions…</button>
-        <div id="moreActionsMenu" class="card" style="display:none; position:absolute; right:0; top:42px; min-width:220px; z-index:50;">
-          <div class="card-body" style="display:flex; flex-direction:column; gap:8px;">
-            <a href="{{ url_for('routes.imports_new') }}">Import Order (CSV)</a>
-            <a href="#" onclick="alert('Export list coming in next phase'); return false;">Export list</a>
-            <a href="{{ url_for('routes.items_new') }}">Manual input item</a>
-          </div>
+        <div id="moreActionsMenu" class="more-actions-dropdown">
+          <a href="{{ url_for('routes.imports_new') }}" class="dropdown-item">
+            <span class="dropdown-icon">📥</span>
+            <span>Import Order (CSV)</span>
+          </a>
+          <a href="#" class="dropdown-item" onclick="alert('Export list coming in next phase'); return false;">
+            <span class="dropdown-icon">📤</span>
+            <span>Export list</span>
+          </a>
+          <a href="{{ url_for('routes.items_new') }}" class="dropdown-item">
+            <span class="dropdown-icon">➕</span>
+            <span>Manual input item</span>
+          </a>
         </div>
       </div>
     </form>
@@ -975,7 +1036,7 @@ async function saveComments(pk_id) {
 function toggleMoreActions(){
   const m = document.getElementById("moreActionsMenu");
   if (!m) return;
-  m.style.display = (m.style.display === "none" || !m.style.display) ? "block" : "none";
+  m.classList.toggle('active');
 }
 
 document.addEventListener("click", (e) => {
@@ -984,7 +1045,7 @@ document.addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (btn && btn.textContent.includes("More actions")) return;
   if (!e.target.closest("#moreActionsMenu")) {
-    menu.style.display = "none";
+    menu.classList.remove('active');
   }
 });
 
