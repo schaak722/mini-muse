@@ -20,11 +20,13 @@ class User(db.Model, UserMixin):
     pk_id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     first_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     last_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    full_name: Mapped[str] = mapped_column(String(200), nullable=True)  # NEW
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    role: Mapped[str] = mapped_column(String(20), nullable=False, default="ADMIN")  # ADMIN/MANAGER/USER
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="user")  # admin/user
     is_active: Mapped[bool] = mapped_column(db.Boolean, nullable=False, default=True)
+    last_login_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)  # NEW
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
