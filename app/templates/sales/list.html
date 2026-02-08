@@ -598,13 +598,13 @@
               <div class="detail-grid" style="margin-top: 16px; align-items: start;">
                 <div style="grid-column: 1 / 3;">
                   <div class="detail-label">Notes</div>
-                  <div class="notes-display">
-                    {% if i.sale.notes %}
-                      {{ i.sale.notes }}
-                    {% else %}
-                      <span style="color: var(--muted); font-style: italic;">No notes</span>
-                    {% endif %}
-                  </div>
+                  <textarea 
+                    class="comments-textarea" 
+                    id="notes-{{ i.sale.pk_id }}"
+                    placeholder="Add notes..."
+                    onblur="saveNotes('{{ i.sale.pk_id }}')"
+                  >{{ i.sale.notes or '' }}</textarea>
+                  <div id="save-status-{{ i.sale.pk_id }}" style="font-size: 11px; color: var(--muted); margin-top: 4px; min-height: 16px;"></div>
                 </div>
 
                 <!-- Empty column 3 -->
@@ -953,6 +953,46 @@ async function submitReverseForm() {
     }
   } catch (error) {
     await mmAlert('Error: ' + error.message, 'error');
+  }
+}
+
+// Save Notes (inline editing)
+let saveTimeout;
+async function saveNotes(sale_pk_id) {
+  const textarea = document.getElementById('notes-' + sale_pk_id);
+  const statusDiv = document.getElementById('save-status-' + sale_pk_id);
+  const notes = textarea.value.trim();
+  
+  // Clear any existing timeout
+  if (saveTimeout) clearTimeout(saveTimeout);
+  
+  statusDiv.textContent = 'Saving...';
+  statusDiv.style.color = 'var(--muted)';
+  
+  try {
+    const formData = new FormData();
+    formData.append('notes', notes);
+    
+    const response = await fetch(`/sales/${sale_pk_id}/update-notes`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (response.ok) {
+      statusDiv.textContent = 'Saved ✓';
+      statusDiv.style.color = 'var(--primary)';
+      
+      // Clear status after 2 seconds
+      saveTimeout = setTimeout(() => {
+        statusDiv.textContent = '';
+      }, 2000);
+    } else {
+      statusDiv.textContent = 'Error saving';
+      statusDiv.style.color = 'var(--danger)';
+    }
+  } catch (error) {
+    statusDiv.textContent = 'Error saving';
+    statusDiv.style.color = 'var(--danger)';
   }
 }
 
