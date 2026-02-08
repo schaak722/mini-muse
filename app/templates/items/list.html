@@ -238,6 +238,27 @@
     box-shadow: 0 0 0 3px var(--primary-light);
   }
 
+  /* Error State for Validation */
+  .sold-form-group.error input,
+  .sold-form-group.error select,
+  .sold-form-group.error textarea {
+    border-color: var(--danger);
+    border-width: 2px;
+    background: #ffebee;
+  }
+
+  .sold-field-error {
+    color: var(--danger);
+    font-size: 12px;
+    margin-top: 6px;
+    font-weight: 600;
+    display: none;
+  }
+
+  .sold-form-group.error .sold-field-error {
+    display: block;
+  }
+
   .sold-form-group textarea {
     resize: vertical;
     min-height: 80px;
@@ -875,11 +896,13 @@
             <div class="sold-currency-input">
               <input type="number" step="0.01" name="selling_price" id="selling_price" placeholder="0.00" required>
             </div>
+            <div class="sold-field-error">⚠️ Sale price is required and must be greater than 0</div>
           </div>
 
           <div class="sold-form-group" style="flex: 1; margin-bottom: 0;">
             <label class="sold-required">Sale Date</label>
             <input type="date" name="sale_date" id="sale_date" required>
+            <div class="sold-field-error">⚠️ Sale date is required</div>
           </div>
         </div>
 
@@ -1096,6 +1119,12 @@ function closeSoldModal() {
 async function submitSoldForm() {
   const form = document.getElementById('soldForm');
   const pk_id = document.getElementById('item_pk_id').value;
+  
+  // Validate form
+  if (!validateSoldForm()) {
+    return; // Don't submit if validation fails
+  }
+  
   const formData = new FormData(form);
   
   try {
@@ -1115,6 +1144,45 @@ async function submitSoldForm() {
   } catch (error) {
     await mmAlert('Error: ' + error.message, 'error');
   }
+}
+
+function validateSoldForm() {
+  let isValid = true;
+  
+  // Clear previous errors
+  document.querySelectorAll('.sold-form-group').forEach(group => {
+    group.classList.remove('error');
+  });
+  
+  // Validate selling price
+  const sellingPrice = document.getElementById('selling_price');
+  const sellingPriceValue = parseFloat(sellingPrice.value);
+  if (!sellingPrice.value || isNaN(sellingPriceValue) || sellingPriceValue <= 0) {
+    sellingPrice.closest('.sold-form-group').classList.add('error');
+    isValid = false;
+  }
+  
+  // Validate sale date
+  const saleDate = document.getElementById('sale_date');
+  if (!saleDate.value) {
+    saleDate.closest('.sold-form-group').classList.add('error');
+    isValid = false;
+  }
+  
+  // Remove error styling when user starts typing
+  sellingPrice.addEventListener('input', () => {
+    if (sellingPrice.value) {
+      sellingPrice.closest('.sold-form-group').classList.remove('error');
+    }
+  });
+  
+  saleDate.addEventListener('change', () => {
+    if (saleDate.value) {
+      saleDate.closest('.sold-form-group').classList.remove('error');
+    }
+  });
+  
+  return isValid;
 }
 
 // Close modal on escape key
