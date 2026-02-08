@@ -637,7 +637,7 @@
             <span class="dropdown-icon">📥</span>
             <span>Import Order (CSV)</span>
           </a>
-          <a href="#" class="dropdown-item" onclick="alert('Export list coming in next phase'); return false;">
+          <a href="#" class="dropdown-item" onclick="mmAlert('Export list coming in next phase', 'info'); return false;">
             <span class="dropdown-icon">📤</span>
             <span>Export list</span>
           </a>
@@ -1107,13 +1107,13 @@ async function submitSoldForm() {
     const data = await response.json();
     
     if (response.ok) {
-      alert('Item marked as sold!');
+      await mmAlert('Item marked as sold!', 'success');
       window.location.reload();
     } else {
-      alert('Error: ' + (data.error || 'Failed to mark item as sold'));
+      await mmAlert('Error: ' + (data.error || 'Failed to mark item as sold'), 'error');
     }
   } catch (error) {
-    alert('Error: ' + error.message);
+    await mmAlert('Error: ' + error.message, 'error');
   }
 }
 
