@@ -103,5 +103,283 @@
   {% else %}
     {% block auth_content %}{% endblock %}
   {% endif %}
+
+  <!-- Branded Modal System -->
+  <div id="mmModalBackdrop" class="mm-modal-backdrop" style="display: none;">
+    <div id="mmModal" class="mm-modal">
+      <div id="mmModalHeader" class="mm-modal-header">
+        <h3 id="mmModalTitle" class="mm-modal-title"></h3>
+      </div>
+      <div id="mmModalBody" class="mm-modal-body"></div>
+      <div id="mmModalFooter" class="mm-modal-footer"></div>
+    </div>
+  </div>
+
+  <style>
+    /* Branded Modal Styles */
+    .mm-modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .mm-modal {
+      background: var(--card);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 440px;
+      box-shadow: 0 8px 32px rgba(22,29,37,.2);
+      overflow: hidden;
+      animation: slideUp 0.3s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .mm-modal-header {
+      padding: 20px 24px;
+      background: var(--primary-light);
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .mm-modal-header.success {
+      background: #d4edda;
+      border-bottom-color: var(--success);
+    }
+
+    .mm-modal-header.error {
+      background: #ffebee;
+      border-bottom-color: var(--danger);
+    }
+
+    .mm-modal-header.warning {
+      background: #fff3cd;
+      border-bottom-color: #ffc107;
+    }
+
+    .mm-modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      margin: 0;
+    }
+
+    .mm-modal-header.success .mm-modal-title {
+      color: var(--success);
+    }
+
+    .mm-modal-header.error .mm-modal-title {
+      color: var(--danger);
+    }
+
+    .mm-modal-header.warning .mm-modal-title {
+      color: #856404;
+    }
+
+    .mm-modal-body {
+      padding: 24px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    .mm-modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      background: #fafbfb;
+    }
+
+    .mm-btn {
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-weight: 650;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: 'Open Sans', sans-serif;
+      transition: all 0.2s;
+    }
+
+    .mm-btn:hover {
+      background: #f6f6f7;
+    }
+
+    .mm-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .mm-btn.primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .mm-btn.danger {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #fff;
+    }
+
+    .mm-btn.danger:hover {
+      background: #b82409;
+    }
+  </style>
+
+  <script>
+    // Mini Muse Branded Alert System
+    function mmAlert(message, type = 'info') {
+      return new Promise((resolve) => {
+        const backdrop = document.getElementById('mmModalBackdrop');
+        const modal = document.getElementById('mmModal');
+        const header = document.getElementById('mmModalHeader');
+        const title = document.getElementById('mmModalTitle');
+        const body = document.getElementById('mmModalBody');
+        const footer = document.getElementById('mmModalFooter');
+
+        // Set title based on type
+        const titles = {
+          success: '✅ Success',
+          error: '❌ Error',
+          warning: '⚠️ Warning',
+          info: 'ℹ️ Information'
+        };
+        title.textContent = titles[type] || titles.info;
+
+        // Set header class
+        header.className = 'mm-modal-header ' + type;
+
+        // Set body
+        body.textContent = message;
+
+        // Set footer with OK button
+        footer.innerHTML = '<button class="mm-btn primary" id="mmAlertOk">OK</button>';
+
+        // Show modal
+        backdrop.style.display = 'flex';
+
+        // Handle OK click
+        const okBtn = document.getElementById('mmAlertOk');
+        const handleOk = () => {
+          backdrop.style.display = 'none';
+          okBtn.removeEventListener('click', handleOk);
+          document.removeEventListener('keydown', handleKeydown);
+          resolve(true);
+        };
+
+        // Handle keyboard
+        const handleKeydown = (e) => {
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            handleOk();
+          }
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        document.addEventListener('keydown', handleKeydown);
+        okBtn.focus();
+      });
+    }
+
+    function mmConfirm(title, message, options = {}) {
+      return new Promise((resolve) => {
+        const backdrop = document.getElementById('mmModalBackdrop');
+        const modal = document.getElementById('mmModal');
+        const header = document.getElementById('mmModalHeader');
+        const titleEl = document.getElementById('mmModalTitle');
+        const body = document.getElementById('mmModalBody');
+        const footer = document.getElementById('mmModalFooter');
+
+        const type = options.type || 'warning';
+        const confirmText = options.confirmText || 'Confirm';
+        const cancelText = options.cancelText || 'Cancel';
+        const isDanger = options.danger || false;
+
+        // Set title
+        titleEl.textContent = title;
+
+        // Set header class
+        header.className = 'mm-modal-header ' + type;
+
+        // Set body
+        body.textContent = message;
+
+        // Set footer with buttons
+        const confirmClass = isDanger ? 'mm-btn danger' : 'mm-btn primary';
+        footer.innerHTML = `
+          <button class="mm-btn" id="mmConfirmCancel">${cancelText}</button>
+          <button class="${confirmClass}" id="mmConfirmOk">${confirmText}</button>
+        `;
+
+        // Show modal
+        backdrop.style.display = 'flex';
+
+        // Handle clicks
+        const okBtn = document.getElementById('mmConfirmOk');
+        const cancelBtn = document.getElementById('mmConfirmCancel');
+
+        const handleOk = () => {
+          cleanup();
+          resolve(true);
+        };
+
+        const handleCancel = () => {
+          cleanup();
+          resolve(false);
+        };
+
+        const cleanup = () => {
+          backdrop.style.display = 'none';
+          okBtn.removeEventListener('click', handleOk);
+          cancelBtn.removeEventListener('click', handleCancel);
+          document.removeEventListener('keydown', handleKeydown);
+        };
+
+        // Handle keyboard
+        const handleKeydown = (e) => {
+          if (e.key === 'Enter') {
+            handleOk();
+          } else if (e.key === 'Escape') {
+            handleCancel();
+          }
+        };
+
+        okBtn.addEventListener('click', handleOk);
+        cancelBtn.addEventListener('click', handleCancel);
+        document.addEventListener('keydown', handleKeydown);
+        okBtn.focus();
+      });
+    }
+
+    // Close modal on backdrop click
+    document.getElementById('mmModalBackdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'mmModalBackdrop') {
+        document.getElementById('mmModalBackdrop').style.display = 'none';
+      }
+    });
+  </script>
 </body>
 </html>

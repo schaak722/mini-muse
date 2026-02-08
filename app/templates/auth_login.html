@@ -2,22 +2,19 @@
 {% block auth_content %}
 <div class="auth-wrap">
   <div class="card">
-    <div class="card-header">
-      <div>
-        <div class="card-title">Sign in</div>
-        <div class="sub">Mini Muse</div>
-      </div>
+    <div class="card-header" style="text-align: center; padding: 32px 24px;">
+      <img src="{{ url_for('static', filename='images/mm-logo-peach.png') }}" alt="Mini Muse" style="width: 120px; height: auto; display: block; margin: 0 auto;">
     </div>
     <div class="card-body">
       <form method="post" class="form">
         {{ form.hidden_tag() }}
         <div class="field">
           <label>Email</label>
-          {{ form.email(placeholder="you@company.com") }}
+          {{ form.email(placeholder="Email") }}
         </div>
         <div class="field">
           <label>Password</label>
-          {{ form.password(placeholder="••••••••") }}
+          {{ form.password(placeholder="Password") }}
         </div>
         <button class="btn primary" type="submit">Sign in</button>
       </form>
