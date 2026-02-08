@@ -397,3 +397,23 @@ def sales_reverse(pk_id):
     db.session.commit()
     
     return jsonify({"success": True, "message": "Sale reversed successfully"})
+
+
+@routes_bp.post("/sales/<pk_id>/update-notes")
+@login_required
+def sales_update_notes(pk_id):
+    """Update sale notes via AJAX"""
+    sale = db.session.get(Sale, pk_id)
+    if not sale:
+        return {"error": "Sale not found"}, 404
+    
+    notes = request.form.get("notes", "").strip()
+    old_notes = sale.notes
+    sale.notes = notes if notes else None
+    
+    if old_notes != sale.notes:
+        audit("SALE", sale.pk_id, "UPDATE", field="notes", old=old_notes, new=sale.notes)
+    
+    db.session.commit()
+    return {"success": True, "notes": sale.notes or ""}
+
