@@ -1,1 +1,568 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+  /* Badge Styling */
+  .badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
 
+  .badge.admin {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+  }
+
+  .badge.user {
+    background: #e3f2fd;
+    color: #1565c0;
+  }
+
+  .badge.active {
+    background: #d4edda;
+    color: var(--success);
+  }
+
+  .badge.inactive {
+    background: #f8d7da;
+    color: #721c24;
+  }
+
+  /* Actions Cell */
+  .actions-cell {
+    display: flex;
+    gap: 8px;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  /* Inactive Row Styling */
+  tr.inactive-row {
+    opacity: 0.6;
+  }
+
+  /* Modal Styling */
+  .user-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .user-modal-backdrop.active {
+    display: flex;
+  }
+
+  .user-modal {
+    background: var(--card);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 8px 32px rgba(22,29,37,.2);
+    overflow: hidden;
+  }
+
+  .user-modal-header {
+    padding: 20px 24px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .user-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .user-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+  }
+
+  .user-modal-close:hover {
+    background: #f6f6f7;
+  }
+
+  .user-modal-body {
+    padding: 24px;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .user-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    background: #fafbfb;
+  }
+
+  /* Pagination */
+  .pagination-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+    background: #fafbfb;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .pagination-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .pagination-info select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: 13px;
+    font-family: 'Open Sans', sans-serif;
+    background: white;
+    cursor: pointer;
+  }
+
+  .pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: var(--text);
+    text-decoration: none;
+  }
+
+  .page-btn:hover:not(.disabled):not(.ellipsis) {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .page-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+
+  .page-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .page-btn.ellipsis {
+    border: none;
+    background: none;
+    cursor: default;
+    pointer-events: none;
+  }
+</style>
+
+<div class="topbar">
+  <div>
+    <h1 class="h1">User Management</h1>
+    <div class="sub">Manage user accounts and permissions</div>
+  </div>
+</div>
+
+<!-- Search Bar -->
+<div class="card" style="margin-bottom:14px;">
+  <div class="card-body">
+    <form method="get" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <input type="hidden" name="page" value="1">
+
+      <div class="field" style="min-width:340px; flex:1;">
+        <label>Search (Email, Name, Role)</label>
+        <input 
+          name="q" 
+          value="{{ q or '' }}" 
+          placeholder="Search users..."
+        >
+      </div>
+
+      <button class="btn primary" type="button" onclick="openAddModal()">Add User</button>
+      <button class="btn primary" type="submit">Apply</button>
+      <a class="btn" href="{{ url_for('routes.users_list') }}">Reset</a>
+    </form>
+  </div>
+</div>
+
+<!-- Users Table -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">User Accounts</div>
+    <span style="color: var(--muted); font-size: 13px;">{{ active_count }} active users</span>
+  </div>
+
+  <div class="card-body table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Last Login</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr {% if not u.is_active %}class="inactive-row"{% endif %}>
+          <td>{{ u.email }}</td>
+          <td>{{ u.full_name or '-' }}</td>
+          <td><span class="badge {{ u.role }}">{{ u.role|upper }}</span></td>
+          <td><span class="badge {% if u.is_active %}active{% else %}inactive{% endif %}">{{ 'Active' if u.is_active else 'Inactive' }}</span></td>
+          <td>{{ u.last_login_at.strftime('%d-%m-%Y %H:%M') if u.last_login_at else 'Never' }}</td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn icon-btn" title="Edit User" onclick="openEditModal('{{ u.pk_id }}', '{{ u.email }}', '{{ u.full_name or '' }}', '{{ u.role }}')">✏️</button>
+              {% if u.is_active %}
+                <button class="btn icon-btn" title="Deactivate" style="color: var(--danger);" onclick="deactivateUser('{{ u.pk_id }}', '{{ u.full_name or u.email }}')">🔒</button>
+              {% else %}
+                <button class="btn icon-btn primary" title="Reactivate" onclick="reactivateUser('{{ u.pk_id }}', '{{ u.full_name or u.email }}')">🔓</button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+
+        {% if not users %}
+        <tr>
+          <td colspan="6" style="color: var(--muted); text-align: center; padding: 40px;">
+            No users found.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if total_count > 0 %}
+  <div class="pagination-container">
+    <div class="pagination-info">
+      <span>Showing <strong>{{ start_item }}-{{ end_item }}</strong> of <strong>{{ total_count }}</strong> users</span>
+      <span style="color: var(--border);">|</span>
+      <label>Users per page:</label>
+      <select onchange="updatePerPage(this.value)">
+        <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+        <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+        <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+      </select>
+    </div>
+
+    <div class="pagination-controls">
+      {% if page > 1 %}
+        <a href="{{ build_url(page - 1) }}" class="page-btn">‹</a>
+      {% else %}
+        <span class="page-btn disabled">‹</span>
+      {% endif %}
+
+      {% for p in page_range %}
+        {% if p == '...' %}
+          <span class="page-btn ellipsis">...</span>
+        {% elif p == page %}
+          <span class="page-btn active">{{ p }}</span>
+        {% else %}
+          <a href="{{ build_url(p) }}" class="page-btn">{{ p }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page < total_pages %}
+        <a href="{{ build_url(page + 1) }}" class="page-btn">›</a>
+      {% else %}
+        <span class="page-btn disabled">›</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="user-modal-backdrop">
+  <div class="user-modal">
+    <div class="user-modal-header">
+      <h3 class="user-modal-title">Add New User</h3>
+      <button class="user-modal-close" onclick="closeAddModal()">×</button>
+    </div>
+    <div class="user-modal-body">
+      <form id="addUserForm">
+        <div class="form-grid">
+          <div class="field">
+            <label>Email *</label>
+            <input type="email" id="add_email" name="email" required placeholder="user@example.com">
+          </div>
+          <div class="field">
+            <label>Full Name *</label>
+            <input type="text" id="add_full_name" name="full_name" required placeholder="John Doe">
+          </div>
+          <div class="field">
+            <label>Role *</label>
+            <select id="add_role" name="role" required>
+              <option value="">Select role...</option>
+              <option value="admin">Admin</option>
+              <option value="user" selected>User</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Password *</label>
+            <input type="password" id="add_password" name="password" required placeholder="Minimum 8 characters">
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="user-modal-footer">
+      <button class="btn" onclick="closeAddModal()">Cancel</button>
+      <button class="btn primary" onclick="submitAddUser()">Create User</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User Modal -->
+<div id="editUserModal" class="user-modal-backdrop">
+  <div class="user-modal">
+    <div class="user-modal-header">
+      <h3 class="user-modal-title">Edit User</h3>
+      <button class="user-modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="user-modal-body">
+      <form id="editUserForm">
+        <input type="hidden" id="edit_pk_id">
+        <div class="form-grid">
+          <div class="field">
+            <label>Email *</label>
+            <input type="email" id="edit_email" name="email" required>
+          </div>
+          <div class="field">
+            <label>Full Name *</label>
+            <input type="text" id="edit_full_name" name="full_name" required>
+          </div>
+          <div class="field">
+            <label>Role *</label>
+            <select id="edit_role" name="role" required>
+              <option value="admin">Admin</option>
+              <option value="user">User</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>New Password</label>
+            <input type="password" id="edit_password" name="password" placeholder="Leave blank to keep current password">
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="user-modal-footer">
+      <button class="btn" onclick="closeEditModal()">Cancel</button>
+      <button class="btn primary" onclick="submitEditUser()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function updatePerPage(value) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('per_page', value);
+  url.searchParams.set('page', '1');
+  window.location.href = url.toString();
+}
+
+// Add User Modal
+function openAddModal() {
+  document.getElementById('addUserForm').reset();
+  document.getElementById('addUserModal').classList.add('active');
+}
+
+function closeAddModal() {
+  document.getElementById('addUserModal').classList.remove('active');
+}
+
+async function submitAddUser() {
+  const form = document.getElementById('addUserForm');
+  const formData = new FormData(form);
+  
+  try {
+    const response = await fetch('/users/add', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      await mmAlert('User created successfully!', 'success');
+      window.location.reload();
+    } else {
+      await mmAlert('Error: ' + (data.error || 'Failed to create user'), 'error');
+    }
+  } catch (error) {
+    await mmAlert('Error: ' + error.message, 'error');
+  }
+}
+
+// Edit User Modal
+function openEditModal(pk_id, email, full_name, role) {
+  document.getElementById('edit_pk_id').value = pk_id;
+  document.getElementById('edit_email').value = email;
+  document.getElementById('edit_full_name').value = full_name;
+  document.getElementById('edit_role').value = role;
+  document.getElementById('edit_password').value = '';
+  
+  document.getElementById('editUserModal').classList.add('active');
+}
+
+function closeEditModal() {
+  document.getElementById('editUserModal').classList.remove('active');
+}
+
+async function submitEditUser() {
+  const pk_id = document.getElementById('edit_pk_id').value;
+  const form = document.getElementById('editUserForm');
+  const formData = new FormData(form);
+  
+  try {
+    const response = await fetch(`/users/${pk_id}/edit`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      await mmAlert('User updated successfully!', 'success');
+      window.location.reload();
+    } else {
+      await mmAlert('Error: ' + (data.error || 'Failed to update user'), 'error');
+    }
+  } catch (error) {
+    await mmAlert('Error: ' + error.message, 'error');
+  }
+}
+
+// Deactivate User
+async function deactivateUser(pk_id, name) {
+  const confirmed = await mmConfirm(
+    '⚠️ Deactivate User',
+    `Are you sure you want to deactivate ${name}? They will lose access to the system but their data will be preserved.`,
+    { danger: true, confirmText: 'Yes, Deactivate', cancelText: 'Cancel' }
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    const response = await fetch(`/users/${pk_id}/deactivate`, {
+      method: 'POST'
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      await mmAlert('User deactivated successfully!', 'success');
+      window.location.reload();
+    } else {
+      await mmAlert('Error: ' + (data.error || 'Failed to deactivate user'), 'error');
+    }
+  } catch (error) {
+    await mmAlert('Error: ' + error.message, 'error');
+  }
+}
+
+// Reactivate User
+async function reactivateUser(pk_id, name) {
+  const confirmed = await mmConfirm(
+    '✅ Reactivate User',
+    `Reactivate ${name}? They will regain full access to the system.`,
+    { confirmText: 'Yes, Reactivate', cancelText: 'Cancel' }
+  );
+  
+  if (!confirmed) return;
+  
+  try {
+    const response = await fetch(`/users/${pk_id}/reactivate`, {
+      method: 'POST'
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      await mmAlert('User reactivated successfully!', 'success');
+      window.location.reload();
+    } else {
+      await mmAlert('Error: ' + (data.error || 'Failed to reactivate user'), 'error');
+    }
+  } catch (error) {
+    await mmAlert('Error: ' + error.message, 'error');
+  }
+}
+
+// Close modals on escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeAddModal();
+    closeEditModal();
+  }
+});
+
+// Close modals on backdrop click
+document.getElementById('addUserModal').addEventListener('click', (e) => {
+  if (e.target.id === 'addUserModal') closeAddModal();
+});
+
+document.getElementById('editUserModal').addEventListener('click', (e) => {
+  if (e.target.id === 'editUserModal') closeEditModal();
+});
+</script>
+{% endblock %}
