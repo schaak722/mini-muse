@@ -56,10 +56,9 @@ def sales_list():
     
     q = (request.args.get("q") or "").strip()
     
-    order_from = (request.args.get("order_from") or "").strip()
-    order_to = (request.args.get("order_to") or "").strip()
-    sale_from = (request.args.get("sale_from") or "").strip()
-    sale_to = (request.args.get("sale_to") or "").strip()
+    date_type = (request.args.get("date_type") or "arrival").strip()
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
     
     # Pagination
     per_page = int(request.args.get("per_page", 25))
@@ -86,23 +85,25 @@ def sales_list():
             )
         )
     
-    # Date filtering with proper conversion
+    # Date filtering with proper conversion based on date_type
     try:
-        # Order Date range
-        if order_from:
-            order_from_obj = datetime.strptime(order_from, '%Y-%m-%d').date()
-            query = query.filter(Item.order_date >= order_from_obj)
-        if order_to:
-            order_to_obj = datetime.strptime(order_to, '%Y-%m-%d').date()
-            query = query.filter(Item.order_date <= order_to_obj)
+        if date_from:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            if date_type == 'order':
+                query = query.filter(Item.order_date >= date_from_obj)
+            elif date_type == 'arrival':
+                query = query.filter(Item.arrival_date >= date_from_obj)
+            elif date_type == 'sold':
+                query = query.filter(Sale.sale_date >= date_from_obj)
         
-        # Sale Date range
-        if sale_from:
-            sale_from_obj = datetime.strptime(sale_from, '%Y-%m-%d').date()
-            query = query.filter(Sale.sale_date >= sale_from_obj)
-        if sale_to:
-            sale_to_obj = datetime.strptime(sale_to, '%Y-%m-%d').date()
-            query = query.filter(Sale.sale_date <= sale_to_obj)
+        if date_to:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            if date_type == 'order':
+                query = query.filter(Item.order_date <= date_to_obj)
+            elif date_type == 'arrival':
+                query = query.filter(Item.arrival_date <= date_to_obj)
+            elif date_type == 'sold':
+                query = query.filter(Sale.sale_date <= date_to_obj)
     except ValueError:
         flash("Invalid date format. Please use the date picker.", "error")
     
@@ -139,14 +140,12 @@ def sales_list():
         params = {}
         if q:
             params['q'] = q
-        if order_from:
-            params['order_from'] = order_from
-        if order_to:
-            params['order_to'] = order_to
-        if sale_from:
-            params['sale_from'] = sale_from
-        if sale_to:
-            params['sale_to'] = sale_to
+        if date_type != 'arrival':  # arrival is default
+            params['date_type'] = date_type
+        if date_from:
+            params['date_from'] = date_from
+        if date_to:
+            params['date_to'] = date_to
         if per_page != 25:
             params['per_page'] = per_page
         params['page'] = target_page
@@ -157,10 +156,9 @@ def sales_list():
         active_nav="sales",
         items=items,
         q=q,
-        order_from=order_from,
-        order_to=order_to,
-        sale_from=sale_from,
-        sale_to=sale_to,
+        date_type=date_type,
+        date_from=date_from,
+        date_to=date_to,
         per_page=per_page,
         page=page,
         total_pages=total_pages,
