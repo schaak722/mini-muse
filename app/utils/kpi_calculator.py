@@ -171,14 +171,17 @@ def get_most_sold_items(start_date: date, end_date: date, limit: int = 5) -> lis
     ).limit(limit).all()
     
     items = []
-    max_quantity = results[0][1] if results else 1  # For percentage calculation
+    max_quantity = int(results[0][1]) if results and results[0][1] else 1
     
     for description, quantity, revenue in results:
+        # Convert to proper types immediately
+        quantity_int = int(quantity)
+        revenue_float = float(revenue) if revenue else 0.0
         items.append({
             'name': description,
-            'quantity': int(quantity),
-            'revenue': float(revenue) if revenue else 0.0,
-            'percentage': (int(quantity) / max_quantity * 100) if max_quantity > 0 else 0
+            'quantity': quantity_int,
+            'revenue': revenue_float,
+            'percentage': (quantity_int / max_quantity * 100) if max_quantity > 0 else 0
         })
     
     return items
@@ -216,14 +219,17 @@ def get_top_brands(start_date: date, end_date: date, limit: int = 5) -> list:
     ).limit(limit).all()
     
     brands = []
-    max_revenue = results[0][1] if results else 1  # For percentage calculation
+    # Convert to float immediately to avoid Decimal issues
+    max_revenue = float(results[0][1]) if results and results[0][1] else 1.0
     
     for brand, revenue, quantity in results:
+        # Convert revenue to float immediately
+        revenue_float = float(revenue) if revenue else 0.0
         brands.append({
             'name': brand,
-            'revenue': float(revenue) if revenue else 0.0,
+            'revenue': revenue_float,
             'quantity': int(quantity),
-            'percentage': (float(revenue) / max_revenue * 100) if max_revenue > 0 else 0
+            'percentage': (revenue_float / max_revenue * 100) if max_revenue > 0 else 0
         })
     
     return brands
