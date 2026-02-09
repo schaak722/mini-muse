@@ -86,7 +86,6 @@ def get_ga4_metrics(start_date: date, end_date: date) -> dict:
                 Metric(name="screenPageViews"),
                 Metric(name="totalUsers"),
                 Metric(name="averageSessionDuration"),
-                Metric(name="newUsers"),
             ],
         )
         
@@ -95,15 +94,13 @@ def get_ga4_metrics(start_date: date, end_date: date) -> dict:
         # Extract metrics
         if response.rows:
             row = response.rows[0]
-            total_views = int(row.metric_values[0].value)
-            unique_visitors = int(row.metric_values[1].value)
-            avg_session_duration = float(row.metric_values[2].value)
-            new_users = int(row.metric_values[3].value)
-            returning_users = unique_visitors - new_users
+            total_views = int(row.metric_values[0].value)  # screenPageViews
+            unique_visitors = int(row.metric_values[1].value)  # totalUsers
+            avg_session_duration = float(row.metric_values[2].value)  # averageSessionDuration
+            # new_users and returning_users will be set by dimension query below
         else:
-            total_views = unique_visitors = new_users = 0
+            total_views = unique_visitors = 0
             avg_session_duration = 0.0
-            returning_users = 0
         
         # Request 2: Previous period views for trend
         prev_request = RunReportRequest(
@@ -119,6 +116,38 @@ def get_ga4_metrics(start_date: date, end_date: date) -> dict:
         
         prev_response = client.run_report(prev_request)
         previous_views = int(prev_response.rows[0].metric_values[0].value) if prev_response.rows else 0
+        
+        # Request 2.5: New vs Returning (using dimension)
+        new_vs_returning_request = RunReportRequest(
+            property=f"properties/{property_id}",
+            date_ranges=[
+                DateRange(
+                    start_date=start_date.strftime('%Y-%m-%d'),
+                    end_date=end_date.strftime('%Y-%m-%d')
+                )
+            ],
+            dimensions=[Dimension(name="newVsReturning")],
+            metrics=[Metric(name="activeUsers")],
+        )
+        
+        new_vs_returning_response = client.run_report(new_vs_returning_request)
+        
+        # Parse new vs returning
+        actual_new_users = 0
+        actual_returning_users = 0
+        
+        for row in new_vs_returning_response.rows:
+            user_type = row.dimension_values[0].value  # "new" or "returning"
+            count = int(row.metric_values[0].value)
+            
+            if user_type == "new":
+                actual_new_users = count
+            elif user_type == "returning":
+                actual_returning_users = count
+        
+        # Override the calculated values with actual values
+        new_users = actual_new_users
+        returning_users = actual_returning_users
         
         # Request 3: Top pages
         pages_request = RunReportRequest(
