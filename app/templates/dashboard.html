@@ -71,6 +71,18 @@
     background: var(--primary-dark);
   }
 
+  /* Section Labels */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin: 32px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border);
+  }
+
   /* KPI Cards - 4 columns */
   .kpi-grid {
     display: grid;
@@ -148,6 +160,14 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  /* GA Grid - 3 columns */
+  .ga-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
   }
 
   .detail-card {
@@ -188,11 +208,17 @@
   .chart-item-name {
     font-weight: 600;
     color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 12px;
   }
 
   .chart-item-value {
     font-weight: 600;
     color: var(--primary-dark);
+    flex-shrink: 0;
   }
 
   .chart-bar-container {
@@ -216,6 +242,105 @@
     margin-top: 4px;
   }
 
+  /* Pie Chart */
+  .pie-chart {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .pie-visual {
+    flex-shrink: 0;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pie-center {
+    width: 80px;
+    height: 80px;
+    background: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .pie-legend {
+    flex: 1;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .legend-item:last-child {
+    border-bottom: none;
+  }
+
+  .legend-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+
+  .legend-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .legend-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .legend-percent {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-row:last-child {
+    border-bottom: none;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .stat-value {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
   /* Empty State */
   .empty-state {
     text-align: center;
@@ -234,6 +359,9 @@
     .kpi-grid {
       grid-template-columns: repeat(2, 1fr);
     }
+    .ga-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 768px) {
@@ -241,6 +369,9 @@
       grid-template-columns: 1fr;
     }
     .detail-grid {
+      grid-template-columns: 1fr;
+    }
+    .ga-grid {
       grid-template-columns: 1fr;
     }
     .date-filter {
@@ -258,7 +389,7 @@
 <div class="topbar">
   <div>
     <h1 class="h1">Dashboard</h1>
-    <div class="sub">Overview of your inventory performance</div>
+    <div class="sub">Overview of your inventory performance and website analytics</div>
   </div>
 
   <div class="date-filter">
@@ -275,6 +406,9 @@
     </form>
   </div>
 </div>
+
+<!-- Section: Inventory & Sales Metrics -->
+<div class="section-label">📦 Inventory & Sales Metrics</div>
 
 <!-- Top Row: 4 KPI Cards -->
 <div class="kpi-grid">
@@ -404,5 +538,121 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Section: Website Analytics (GA4) -->
+{% if kpis.ga_metrics %}
+<div class="section-label">📈 Website Analytics (Google Analytics)</div>
+
+<div class="ga-grid">
+  <!-- Total Views Card -->
+  <div class="detail-card">
+    <div class="detail-card-header">
+      <span>Total Views</span>
+    </div>
+    
+    <div class="kpi-value" style="font-size: 48px; margin: 20px 0;">{{ kpis.ga_metrics.total_views }}</div>
+    {% if kpis.ga_metrics.trend.direction == 'up' %}
+      <div class="kpi-trend up">↑ {{ "%.1f"|format(kpis.ga_metrics.trend.percent) }}% vs previous period</div>
+    {% elif kpis.ga_metrics.trend.direction == 'down' %}
+      <div class="kpi-trend down">↓ {{ "%.1f"|format(kpis.ga_metrics.trend.percent) }}% vs previous period</div>
+    {% else %}
+      <div class="kpi-trend neutral">→ 0% vs previous period</div>
+    {% endif %}
+    
+    <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+      <div class="stat-row">
+        <span class="stat-label">Page Views</span>
+        <span class="stat-value">{{ kpis.ga_metrics.total_views }}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Unique Visitors</span>
+        <span class="stat-value">{{ kpis.ga_metrics.unique_visitors }}</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Avg. Session Duration</span>
+        <span class="stat-value">{{ kpis.ga_metrics.avg_session_duration_formatted }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- New vs Returning Visitors -->
+  <div class="detail-card">
+    <div class="detail-card-header">
+      <span>New vs Returning</span>
+    </div>
+    
+    {% set total_users = kpis.ga_metrics.new_users + kpis.ga_metrics.returning_users %}
+    {% if total_users > 0 %}
+      {% set returning_percent = (kpis.ga_metrics.returning_users / total_users * 100) | int %}
+      {% set new_percent = (kpis.ga_metrics.new_users / total_users * 100) | int %}
+      {% set returning_deg = (returning_percent * 3.6) | int %}
+    {% else %}
+      {% set returning_percent = 0 %}
+      {% set new_percent = 0 %}
+      {% set returning_deg = 0 %}
+    {% endif %}
+    
+    <div class="pie-chart">
+      <div class="pie-visual" style="background: conic-gradient(
+        var(--success) 0deg {{ returning_deg }}deg,
+        #1565c0 {{ returning_deg }}deg 360deg
+      );">
+        <div class="pie-center">{{ returning_percent }}%</div>
+      </div>
+      
+      <div class="pie-legend">
+        <div class="legend-item">
+          <div class="legend-label">
+            <div class="legend-color" style="background: var(--success);"></div>
+            <span class="legend-name">Returning</span>
+          </div>
+          <div>
+            <span class="legend-value">{{ kpis.ga_metrics.returning_users }}</span>
+            <span class="legend-percent">({{ returning_percent }}%)</span>
+          </div>
+        </div>
+        
+        <div class="legend-item">
+          <div class="legend-label">
+            <div class="legend-color" style="background: #1565c0;"></div>
+            <span class="legend-name">New</span>
+          </div>
+          <div>
+            <span class="legend-value">{{ kpis.ga_metrics.new_users }}</span>
+            <span class="legend-percent">({{ new_percent }}%)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top 10 Most Viewed Pages -->
+  <div class="detail-card">
+    <div class="detail-card-header">
+      <span>Top 10 Pages</span>
+      <span style="font-size: 12px; color: var(--muted);">By Views</span>
+    </div>
+    
+    {% if kpis.ga_metrics.top_pages %}
+      {% for page in kpis.ga_metrics.top_pages %}
+      <div class="chart-item">
+        <div class="chart-label">
+          <span class="chart-item-name">{{ loop.index }}. {{ page.page }}</span>
+          <span class="chart-item-value">{{ page.views }}</span>
+        </div>
+        <div class="chart-bar-container">
+          <div class="chart-bar" style="width: {{ page.percentage }}%;"></div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <p>No page view data available</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
 
 {% endblock %}
