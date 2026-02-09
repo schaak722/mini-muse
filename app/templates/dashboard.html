@@ -1,24 +1,408 @@
 {% extends "base.html" %}
 {% block content %}
+<style>
+  /* Date Filter Pills */
+  .date-filter {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--card);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  .filter-pill {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text);
+    font-family: 'Open Sans', sans-serif;
+    text-decoration: none;
+  }
+
+  .filter-pill:hover {
+    background: #f6f6f7;
+  }
+
+  .filter-pill.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+  }
+
+  .custom-range {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 12px;
+    border-left: 1px solid var(--border);
+    margin-left: 8px;
+  }
+
+  .custom-range input {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 130px;
+  }
+
+  .custom-range button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--primary);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+
+  .custom-range button:hover {
+    background: var(--primary-dark);
+  }
+
+  /* KPI Cards - 4 columns */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(22,29,37,.05);
+    transition: all 0.2s;
+  }
+
+  .kpi-card:hover {
+    box-shadow: 0 4px 12px rgba(22,29,37,.1);
+    transform: translateY(-2px);
+  }
+
+  .kpi-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+
+  .kpi-value {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+    line-height: 1;
+  }
+
+  .kpi-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+  }
+
+  .kpi-trend.up {
+    background: #d4edda;
+    color: var(--success);
+  }
+
+  .kpi-trend.down {
+    background: #f8d7da;
+    color: var(--danger);
+  }
+
+  .kpi-trend.neutral {
+    background: #f1f2f3;
+    color: var(--muted);
+  }
+
+  /* Detail Cards - 2 columns */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .detail-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 1px 3px rgba(22,29,37,.05);
+  }
+
+  .detail-card-header {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Bar Chart */
+  .chart-item {
+    margin-bottom: 16px;
+  }
+
+  .chart-item:last-child {
+    margin-bottom: 0;
+  }
+
+  .chart-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+
+  .chart-item-name {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .chart-item-value {
+    font-weight: 600;
+    color: var(--primary-dark);
+  }
+
+  .chart-bar-container {
+    width: 100%;
+    height: 8px;
+    background: #f1f2f3;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .chart-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-light), var(--primary));
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+
+  .chart-secondary {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Empty State */
+  .empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+  }
+
+  .empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+
+  /* Responsive */
+  @media (max-width: 1200px) {
+    .kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .kpi-grid {
+      grid-template-columns: 1fr;
+    }
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+    .date-filter {
+      flex-wrap: wrap;
+    }
+    .custom-range {
+      border-left: none;
+      margin-left: 0;
+      padding-left: 0;
+      width: 100%;
+    }
+  }
+</style>
+
 <div class="topbar">
   <div>
     <h1 class="h1">Dashboard</h1>
-    <div class="sub">At-a-glance inventory and sales performance.</div>
+    <div class="sub">Overview of your inventory performance</div>
+  </div>
+
+  <div class="date-filter">
+    <a href="?period=last_7_days" class="filter-pill {% if period == 'last_7_days' %}active{% endif %}">Last 7 Days</a>
+    <a href="?period=last_month" class="filter-pill {% if period == 'last_month' %}active{% endif %}">Last Month</a>
+    <a href="?period=ytd" class="filter-pill {% if period == 'ytd' %}active{% endif %}">YTD</a>
+    
+    <form method="get" class="custom-range">
+      <input type="hidden" name="period" value="custom">
+      <input type="date" name="date_from" value="{{ custom_from }}" required>
+      <span style="color: var(--muted);">to</span>
+      <input type="date" name="date_to" value="{{ custom_to }}" required>
+      <button type="submit">Apply</button>
+    </form>
   </div>
 </div>
 
-<div class="grid cols-3">
-  <div class="card kpi">
-    <div class="label">In stock</div>
-    <div class="value">{{ in_stock }}</div>
+<!-- Top Row: 4 KPI Cards -->
+<div class="kpi-grid">
+  <!-- Revenue Card -->
+  <div class="kpi-card">
+    <div class="kpi-label">Revenue (Net)</div>
+    <div class="kpi-value">€{{ "%.2f"|format(kpis.revenue.value) }}</div>
+    {% if kpis.revenue.trend.direction == 'up' %}
+      <div class="kpi-trend up">
+        ↑ {{ "%.1f"|format(kpis.revenue.trend.percent) }}%
+      </div>
+    {% elif kpis.revenue.trend.direction == 'down' %}
+      <div class="kpi-trend down">
+        ↓ {{ "%.1f"|format(kpis.revenue.trend.percent) }}%
+      </div>
+    {% else %}
+      <div class="kpi-trend neutral">
+        → 0%
+      </div>
+    {% endif %}
+    <div class="kpi-subtitle">vs previous period</div>
   </div>
-  <div class="card kpi">
-    <div class="label">Sold</div>
-    <div class="value">{{ sold }}</div>
+
+  <!-- Profit Card -->
+  <div class="kpi-card">
+    <div class="kpi-label">Profit</div>
+    <div class="kpi-value">€{{ "%.2f"|format(kpis.profit.value) }}</div>
+    {% if kpis.profit.trend.direction == 'up' %}
+      <div class="kpi-trend up">
+        ↑ {{ "%.1f"|format(kpis.profit.trend.percent) }}%
+      </div>
+    {% elif kpis.profit.trend.direction == 'down' %}
+      <div class="kpi-trend down">
+        ↓ {{ "%.1f"|format(kpis.profit.trend.percent) }}%
+      </div>
+    {% else %}
+      <div class="kpi-trend neutral">
+        → 0%
+      </div>
+    {% endif %}
+    <div class="kpi-subtitle">vs previous period</div>
   </div>
-  <div class="card kpi">
-    <div class="label">Total profit</div>
-    <div class="value">€{{ total_profit }}</div>
+
+  <!-- Items in Stock Card -->
+  <div class="kpi-card">
+    <div class="kpi-label">Items in Stock</div>
+    <div class="kpi-value">{{ kpis.items_in_stock.count }}</div>
+    <div class="kpi-subtitle">Value: €{{ "%.2f"|format(kpis.items_in_stock.value) }}</div>
+  </div>
+
+  <!-- Items Sold Card -->
+  <div class="kpi-card">
+    <div class="kpi-label">Items Sold</div>
+    <div class="kpi-value">{{ kpis.items_sold.value }}</div>
+    {% if kpis.items_sold.trend.direction == 'up' %}
+      <div class="kpi-trend up">
+        ↑ {{ "%.1f"|format(kpis.items_sold.trend.percent) }}%
+      </div>
+    {% elif kpis.items_sold.trend.direction == 'down' %}
+      <div class="kpi-trend down">
+        ↓ {{ "%.1f"|format(kpis.items_sold.trend.percent) }}%
+      </div>
+    {% else %}
+      <div class="kpi-trend neutral">
+        → 0%
+      </div>
+    {% endif %}
+    <div class="kpi-subtitle">vs previous period</div>
   </div>
 </div>
+
+<!-- Bottom Row: 2 Detail Cards -->
+<div class="detail-grid">
+  <!-- Most Sold Top 5 Items -->
+  <div class="detail-card">
+    <div class="detail-card-header">
+      <span>Most Sold Items</span>
+      <span style="font-size: 12px; color: var(--muted);">By Quantity</span>
+    </div>
+    
+    {% if kpis.most_sold_items %}
+      {% for item in kpis.most_sold_items %}
+      <div class="chart-item">
+        <div class="chart-label">
+          <span class="chart-item-name">{{ loop.index }}. {{ item.name }}</span>
+          <span class="chart-item-value">{{ item.quantity }} sold</span>
+        </div>
+        <div class="chart-bar-container">
+          <div class="chart-bar" style="width: {{ item.percentage }}%;"></div>
+        </div>
+        <div class="chart-secondary">Revenue: €{{ "%.2f"|format(item.revenue) }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">📦</div>
+        <p>No sales data for selected period</p>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Top Brands -->
+  <div class="detail-card">
+    <div class="detail-card-header">
+      <span>Top Selling Brands</span>
+      <span style="font-size: 12px; color: var(--muted);">By Revenue</span>
+    </div>
+    
+    {% if kpis.top_brands %}
+      {% for brand in kpis.top_brands %}
+      <div class="chart-item">
+        <div class="chart-label">
+          <span class="chart-item-name">{{ loop.index }}. {{ brand.name }}</span>
+          <span class="chart-item-value">€{{ "%.2f"|format(brand.revenue) }}</span>
+        </div>
+        <div class="chart-bar-container">
+          <div class="chart-bar" style="width: {{ brand.percentage }}%;"></div>
+        </div>
+        <div class="chart-secondary">{{ brand.quantity }} items sold</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+        <div class="empty-state-icon">🏷️</div>
+        <p>No sales data for selected period</p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
 {% endblock %}
