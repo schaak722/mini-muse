@@ -6,5 +6,4 @@ db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 login_manager.login_view = "auth.login_page"
-
-
+login_manager.login_message = None  # ← Add this line to disable the message
