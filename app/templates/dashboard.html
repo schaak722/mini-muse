@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
+  /* All existing styles remain the same until pie chart */
+  
   /* Date Filter Pills */
   .date-filter {
     display: flex;
@@ -242,7 +244,7 @@
     margin-top: 4px;
   }
 
-  /* Pie Chart */
+  /* Pie Chart - FIXED VERSION with SVG */
   .pie-chart {
     display: flex;
     gap: 24px;
@@ -253,14 +255,14 @@
     flex-shrink: 0;
     width: 140px;
     height: 140px;
-    border-radius: 50%;
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   .pie-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     width: 80px;
     height: 80px;
     background: white;
@@ -271,6 +273,7 @@
     font-size: 24px;
     font-weight: 700;
     color: var(--text);
+    z-index: 2;
   }
 
   .pie-legend {
@@ -585,25 +588,55 @@
     {% if total_users > 0 %}
       {% set returning_percent = (kpis.ga_metrics.returning_users / total_users * 100) | int %}
       {% set new_percent = (kpis.ga_metrics.new_users / total_users * 100) | int %}
-      {% set returning_deg = (returning_percent * 3.6) | int %}
     {% else %}
       {% set returning_percent = 0 %}
       {% set new_percent = 0 %}
-      {% set returning_deg = 0 %}
     {% endif %}
     
     <div class="pie-chart">
-      <div class="pie-visual" style="background: conic-gradient(
-        var(--success) 0deg {{ returning_deg }}deg,
-        #1565c0 {{ returning_deg }}deg 360deg
-      );">
+      <!-- SVG Donut Chart -->
+      <div class="pie-visual">
+        <svg width="140" height="140" viewBox="0 0 140 140">
+          <!-- Background circle -->
+          <circle cx="70" cy="70" r="60" fill="none" stroke="#f1f2f3" stroke-width="30"/>
+          
+          <!-- Returning users (green) - starts at top, goes clockwise -->
+          {% set returning_circumference = 2 * 3.14159 * 60 %}
+          {% set returning_dash = (returning_percent / 100) * returning_circumference %}
+          <circle 
+            cx="70" 
+            cy="70" 
+            r="60" 
+            fill="none" 
+            stroke="#008060" 
+            stroke-width="30"
+            stroke-dasharray="{{ returning_dash }} {{ returning_circumference }}"
+            stroke-dashoffset="{{ returning_circumference / 4 }}"
+            transform="rotate(-90 70 70)"
+          />
+          
+          <!-- New users (blue) - continues after returning -->
+          {% set new_dash = (new_percent / 100) * returning_circumference %}
+          {% set new_offset = (returning_circumference / 4) - returning_dash %}
+          <circle 
+            cx="70" 
+            cy="70" 
+            r="60" 
+            fill="none" 
+            stroke="#1565c0" 
+            stroke-width="30"
+            stroke-dasharray="{{ new_dash }} {{ returning_circumference }}"
+            stroke-dashoffset="{{ new_offset }}"
+            transform="rotate(-90 70 70)"
+          />
+        </svg>
         <div class="pie-center">{{ returning_percent }}%</div>
       </div>
       
       <div class="pie-legend">
         <div class="legend-item">
           <div class="legend-label">
-            <div class="legend-color" style="background: var(--success);"></div>
+            <div class="legend-color" style="background: #008060;"></div>
             <span class="legend-name">Returning</span>
           </div>
           <div>
