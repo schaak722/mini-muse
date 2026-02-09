@@ -8,6 +8,15 @@ from functools import lru_cache
 from app.extensions import db
 from app.models import Item, Sale
 
+# Import GA4 client (will be None if not configured)
+try:
+    from app.utils.ga4_client import get_ga4_metrics, format_duration
+    GA4_AVAILABLE = True
+except ImportError:
+    GA4_AVAILABLE = False
+    get_ga4_metrics = None
+    format_duration = None
+
 
 def get_date_range(period: str, custom_from: str = None, custom_to: str = None):
     """
@@ -295,6 +304,32 @@ def get_dashboard_kpis(period: str = 'last_7_days', custom_from: str = None, cus
     most_sold = get_most_sold_items(start_date, end_date)
     top_brands = get_top_brands(start_date, end_date)
     
+    # Google Analytics metrics (if configured)
+    ga_metrics = None
+    if GA4_AVAILABLE and get_ga4_metrics:
+        try:
+            ga_data = get_ga4_metrics(start_date, end_date)
+            
+            # Calculate trend
+            ga_trend = calculate_trend(
+                float(ga_data['total_views']),
+                float(ga_data['previous_views'])
+            )
+            
+            ga_metrics = {
+                'total_views': ga_data['total_views'],
+                'unique_visitors': ga_data['unique_visitors'],
+                'avg_session_duration': ga_data['avg_session_duration'],
+                'avg_session_duration_formatted': format_duration(ga_data['avg_session_duration']) if format_duration else '0s',
+                'new_users': ga_data['new_users'],
+                'returning_users': ga_data['returning_users'],
+                'top_pages': ga_data['top_pages'],
+                'trend': ga_trend
+            }
+        except Exception as e:
+            print(f"Error fetching GA metrics: {e}")
+            ga_metrics = None
+    
     return {
         'period': period,
         'start_date': start_date.isoformat(),
@@ -313,5 +348,6 @@ def get_dashboard_kpis(period: str = 'last_7_days', custom_from: str = None, cus
             'trend': calculate_trend(items_sold_current, items_sold_previous)
         },
         'most_sold_items': most_sold,
-        'top_brands': top_brands
+        'top_brands': top_brands,
+        'ga_metrics': ga_metrics  # Will be None if GA not configured
     }
